@@ -1,5 +1,5 @@
 # Ignore Results File
-Code/
+Code/Results
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
