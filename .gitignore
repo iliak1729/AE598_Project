@@ -1,3 +1,6 @@
+# Ignore Results File
+Code/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -140,6 +143,7 @@ celerybeat.pid
 mnesia/
 rabbitmq/
 rabbitmq-data/
+
 
 # ActiveMQ
 activemq-data/
