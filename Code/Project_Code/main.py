@@ -59,6 +59,8 @@ def main():
     L_integral                   = u_rms**3/eps # Integral length scale [m]
     tau_L                        = L_integral/u_rms # Large-eddy turnover time [s]
 
+    g = 9.81 # gravitational acceleration
+
 
     # ================================================ Print Features ==========================================================
     print("Number of computational cells = %i^3    [-]" % nx)
@@ -106,13 +108,18 @@ def main():
         return(dxdt,dvdt)
     
     def angularDerivative(t,x,v,w,St,tau_r):
-        tau_p = St*tau_eta
-        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        u_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        wf_interp = fluid_vorticity_interpolator(x, L, dx, omega_fg, ng)
+        
+        # particle positions rhs
         dxdt = v
 
-        dvdt = get_drag_force(x,v,v_interp,tau_p)
+        # particle velocity rhs
+        tau_p = St*tau_eta
+        dvdt = get_drag_force(x,v,u_interp,tau_p)
+        #dvdt[...,1] += get_gravity_force(g)
 
-        wf_interp = fluid_vorticity_interpolator(x, L, dx, omega_fg, ng)
+        # particle angular velocity rhs
         dwdt = get_torque(w,wf_interp,tau_r)
 
         return(dxdt,dvdt,dwdt)
@@ -137,7 +144,7 @@ def main():
 
     St = 1
     tau_r = 1
-    (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,lambda t,x,v,w : angularDerivative(t,x,v,w,St,tau_r))    
+    (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : angularDerivative(t,x,v,w,St,tau_r))    
     fig = plt.figure(layout='constrained', figsize=(10, 5)); subfigs = fig.subplots(1, 2)
     # Initialize slice paramters
     slice_loc = 0.25*L

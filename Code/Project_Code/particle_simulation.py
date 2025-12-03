@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 # Gravity Force - TO DO 
-def get_gravity_force(m,g):
-    return m*g
+def get_gravity_force(g):
+    return g
 
 # Drag Force - Update if needed
-def get_drag_force(x,v,v_interp,tau_p):
-    return (v_interp-v)/tau_p
+def get_drag_force(x,v,u_interp,tau_p):
+    return (u_interp-v)/tau_p
 
 # Torque
 def get_torque(wf_interp, wp, tau_r):
@@ -26,9 +26,9 @@ def get_saffman_lift(R,rho_p,rho,mu,up,u_interp,wf_interp):
 
     relative_velocity = u_interp - up
     cross_product = np.zeros(relative_velocity.shape)
-    cross_product[:,0] = relative_velocity[:,1]*wf_interp[:,2] - relative_velocity[:,2]-wf_interp[:,1]
-    cross_product[:,1] = relative_velocity[:,2]-wf_interp[:,0] - relative_velocity[:,0]*wf_interp[:,2] 
-    cross_product[:,2] = relative_velocity[:,0]*wf_interp[:,1] - relative_velocity[:,1]-wf_interp[:,0]
+    cross_product[:,0] = relative_velocity[:,1]*wf_interp[:,2] - relative_velocity[:,2]*wf_interp[:,1]
+    cross_product[:,1] = relative_velocity[:,2]*wf_interp[:,0] - relative_velocity[:,0]*wf_interp[:,2] 
+    cross_product[:,2] = relative_velocity[:,0]*wf_interp[:,1] - relative_velocity[:,1]*wf_interp[:,0]
 
     return coeff * np.sqrt(inside_root) * cross_product
 
@@ -85,7 +85,14 @@ def fluid_vorticity_interpolator(x, L, dx, omega, ng):
   return np.swapaxes(np.array([w1p,w2p,w3p]),0,1)
 
 
-def rk4_integrator(x0,v0,w0,dt,Nt,derivativeFunction): 
+def check_particles_periodic(x, L):
+  # domain beg
+  x = np.where(x < 0, L+x, x)
+  # domain end
+  x = np.where(x > L, x-L, x)
+  return x
+
+def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction): 
   x = np.copy(x0) # position
   v = np.copy(v0) # translational velocity
   w = np.copy(w0) # angular velocity
@@ -110,6 +117,9 @@ def rk4_integrator(x0,v0,w0,dt,Nt,derivativeFunction):
     v = v + dt*(k1v+2*k2v+2*k3v+k4v)/6
     w = w + dt*(k1w+2*k2w+2*k3w+k4w)/6
     t = t + dt
+
+    # check if particles have left domain - remap into domain
+    x = check_particles_periodic(x, L)
 
     # Update this for storage of x,v,w
   return (x,v,w)
