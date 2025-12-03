@@ -13,6 +13,15 @@ def get_gravity_force(g):
 def get_drag_force(x,v,u_interp,tau_p):
     return (u_interp-v)/tau_p
 
+# Faxen Drag Term
+def get_faxen_correction(mu,rho_particle,lap_u):
+   return 3*mu*lap_u/(4*rho_particle)
+
+
+# Faxen Drag Term
+def get_faxen_correction(mu,rho_particle,lap_u):
+   return 3*mu*lap_u/(4*rho_particle)
+
 # Torque
 def get_torque(wf_interp, wp, tau_r):
    return (0.5 * wf_interp - wp) / tau_r
@@ -44,7 +53,7 @@ def get_magnus_lift(lambda_rho,u_p,omega_p,u_interp,wf_interp):
     cross_product[:,0] = relative_rotation[:,1]*relative_velocity[:,2] - relative_rotation[:,2]*relative_velocity[:,1]
     cross_product[:,1] = relative_rotation[:,2]*relative_velocity[:,0] - relative_rotation[:,0]*relative_velocity[:,2] 
     cross_product[:,2] = relative_rotation[:,0]*relative_velocity[:,1] - relative_rotation[:,1]*relative_velocity[:,0]
-    
+
     return coeff * cross_product
 
 # Contact Forces
@@ -84,6 +93,14 @@ def fluid_vorticity_interpolator(x, L, dx, omega, ng):
 
   return np.swapaxes(np.array([w1p,w2p,w3p]),0,1)
 
+# Take Laplacian Function. Includes Ghost Cells
+def laplacian_scalar_field(f,dx):
+   lap = (
+      np.gradient(np.gradient(f,dx,axis=0),dx,axis=0) + 
+      np.gradient(np.gradient(f, dx, axis=1), dx, axis=1) +
+    np.gradient(np.gradient(f, dx, axis=2), dx, axis=2)
+   )
+   return lap
 
 def check_particles_periodic(x, L):
   # domain beg

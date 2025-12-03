@@ -35,10 +35,20 @@ def main():
     u, v, w                      = vel[:,:,:,0],  vel[:,:,:,1],  vel[:,:,:,2] # Velocity components
     vel_mag                      = np.sqrt(u**2+v**2+w**2) # Velocity magnitude
     ug, vg, wg                   = velg[:,:,:,0], velg[:,:,:,1], velg[:,:,:,2] # Velocity components with ghost layer padding (needed for gradient)
+    print(nx)
+    print(dx)
     # Compute velocity gradient
     grad_u_x, grad_u_y, grad_u_z = np.array(np.gradient(ug, dx))[:,ng:-ng,ng:-ng,ng:-ng]
     grad_v_x, grad_v_y, grad_v_z = np.array(np.gradient(vg, dx))[:,ng:-ng,ng:-ng,ng:-ng]
     grad_w_x, grad_w_y, grad_w_z = np.array(np.gradient(wg, dx))[:,ng:-ng,ng:-ng,ng:-ng]
+    # Compute material derivative - assuming no d/dt
+    mat_der_u = u*grad_u_x + v*grad_u_y + w*grad_u_z
+    mat_der_v = u*grad_v_x + v*grad_v_y + w*grad_v_z
+    mat_der_w = u*grad_w_x + v*grad_w_y + w*grad_w_z
+    # Laplacians
+    lap_u = laplacian_scalar_field(ug,dx)[ng:-ng,ng:-ng,ng:-ng]
+    lap_v = laplacian_scalar_field(vg,dx)[ng:-ng,ng:-ng,ng:-ng]
+    lap_w = laplacian_scalar_field(wg,dx)[ng:-ng,ng:-ng,ng:-ng]
     # Compute fluid vorticity
     omega_f = np.zeros((nx, nx, nx, 3))
     omega_f[:, :, :, 0] = grad_w_y - grad_v_z
@@ -108,18 +118,14 @@ def main():
         return(dxdt,dvdt)
     
     def angularDerivative(t,x,v,w,St,tau_r):
-        u_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        tau_p = St*tau_eta
+        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
         wf_interp = fluid_vorticity_interpolator(x, L, dx, omega_fg, ng)
-        
-        # particle positions rhs
         dxdt = v
 
-        # particle velocity rhs
-        tau_p = St*tau_eta
-        dvdt = get_drag_force(x,v,u_interp,tau_p)
-        #dvdt[...,1] += get_gravity_force(g)
+        dvdt = get_drag_force(x,v,v_interp,tau_p)+get_magnus_lift(1,v,w,v_interp,wf_interp)
 
-        # particle angular velocity rhs
+        
         dwdt = get_torque(w,wf_interp,tau_r)
 
         return(dxdt,dvdt,dwdt)
