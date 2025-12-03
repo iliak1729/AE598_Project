@@ -87,7 +87,7 @@ def fluid_vorticity_interpolator(x, L, dx, omega, ng):
 
 def check_particles_periodic(x, L):
   # domain beg
-  x = np.where(x < 0, L+x, x)
+  x = np.where(x < 0, x+L, x)
   # domain end
   x = np.where(x > L, x-L, x)
   return x

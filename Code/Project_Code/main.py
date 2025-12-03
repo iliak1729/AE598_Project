@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 # Particle Sim Function Import
 from particle_simulation import *
 from tqdm import tqdm
+import os
 
 # Main Function
 def main():
     # Important Inputs
-    work_file_path = '/home/iliak2/Desktop/Homework/MultiphaseFlow/AE598_Project/'
-    work_file_path = '/home/conradd3/repositories/AE598_Project/'
-    data_file_path = work_file_path + 'Code/Flow_Data/hit/ae598-mf-hw3-data.npz'
+    work_file_path = os.getcwd()  
+    data_file_path = work_file_path + '/Code/Flow_Data/hit/ae598-mf-hw3-data.npz'
     # This will install the packages needed for the HW (if these are not installed yet)
     plt.rcParams['figure.dpi'] = 300
     plt.rcParams['savefig.dpi'] = 300
@@ -80,7 +80,7 @@ def main():
     plt.imshow(vel_mag[:,:,0], interpolation='spline36', cmap='PuOr_r', origin='lower', extent=[0, L, 0, L])
     x_coords = 0.5*dx + np.linspace(0, L, nx, endpoint=False); X, Y = np.meshgrid(x_coords, x_coords)
     plt.quiver(X[::3,::3], Y[::3,::3], u[::3,::3,-1],v[::3,::3,-1],color='black'); plt.axis('off')
-    plt.savefig(work_file_path+"Code/Results/hit.pdf", dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.savefig(work_file_path+"/Code/Results/hit.pdf", dpi=600, bbox_inches='tight', pad_inches=0)
     plt.close('all')
     # ================================================ Derivative Functions ==========================================================
     # For tracers, since the velocity updates instantly, there is no ODE for it. 
