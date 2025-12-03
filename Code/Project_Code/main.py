@@ -12,6 +12,7 @@ from tqdm import tqdm
 def main():
     # Important Inputs
     work_file_path = '/home/iliak2/Desktop/Homework/MultiphaseFlow/AE598_Project/'
+    work_file_path = '/home/conradd3/repositories/AE598_Project/'
     data_file_path = work_file_path + 'Code/Flow_Data/hit/ae598-mf-hw3-data.npz'
     # This will install the packages needed for the HW (if these are not installed yet)
     plt.rcParams['figure.dpi'] = 300
@@ -38,6 +39,13 @@ def main():
     grad_u_x, grad_u_y, grad_u_z = np.array(np.gradient(ug, dx))[:,ng:-ng,ng:-ng,ng:-ng]
     grad_v_x, grad_v_y, grad_v_z = np.array(np.gradient(vg, dx))[:,ng:-ng,ng:-ng,ng:-ng]
     grad_w_x, grad_w_y, grad_w_z = np.array(np.gradient(wg, dx))[:,ng:-ng,ng:-ng,ng:-ng]
+    # Compute fluid vorticity
+    omega_f = np.zeros((nx, nx, nx, 3))
+    omega_f[:, :, :, 0] = grad_w_y - grad_v_z
+    omega_f[:, :, :, 1] = grad_u_z - grad_w_x
+    omega_f[:, :, :, 2] = grad_v_x - grad_u_y
+    omega_fg = np.pad(omega_f, ((ng,ng),(ng,ng),(ng,ng),(0,0)), 'wrap')
+
     # Compute turbulent kinetic energy and dissipation rate
     tke                          = 0.5*np.mean(u**2+v**2+w**2)
     eps                          = 2.0*nu*np.mean(grad_u_x**2+grad_v_y**2+grad_w_z**2+0.25*(grad_u_y+grad_v_x)**2+0.25*(grad_u_z+grad_w_x)**2+0.25*(grad_v_z+grad_w_y)**2)
@@ -96,6 +104,19 @@ def main():
         # More thought needed in this, but consistency is important. 
         dvdt = get_drag_force(x,v,v_interp,tau_p)
         return(dxdt,dvdt)
+    
+    def angularDerivative(t,x,v,w,St,tau_r):
+        tau_p = St*tau_eta
+        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        dxdt = v
+
+        dvdt = get_drag_force(x,v,v_interp,tau_p)
+
+        wf_interp = fluid_vorticity_interpolator(x, L, dx, omega_fg, ng)
+        dwdt = get_torque(w,wf_interp,tau_r)
+
+        return(dxdt,dvdt,dwdt)
+    
     # The Associated ODE for this should be on slide 76 of the Chapter 2 notes. 
     # Since we also need to solve the rotation equation for this, an updated rk4 solver will be needed
     # We will also need to calculate certain values (vorticity,material derivative) of the flow field and particle
@@ -111,10 +132,12 @@ def main():
 
     # Initial random fluid tracer locations in [0,L]^3
     v0 = np.zeros((Nparticle,3))
+    w0 = np.zeros((Nparticle,3))
     x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
 
     St = 1
-    (x,v) = rk4_integrator(x0,v0,dt,Nt,lambda t,x,v : inertialDerivativeRemake(t,x,v,St))
+    tau_r = 1
+    (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,lambda t,x,v,w : angularDerivative(t,x,v,w,St,tau_r))    
     fig = plt.figure(layout='constrained', figsize=(10, 5)); subfigs = fig.subplots(1, 2)
     # Initialize slice paramters
     slice_loc = 0.25*L
