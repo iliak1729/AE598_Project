@@ -10,7 +10,7 @@ def get_gravity_force(m,g):
     print("Gravity")
     return 1
 
-# Fluid Force - TO DO 
+# Drag Force - Update if needed
 def get_drag_force(x,v,v_interp,tau_p):
     return (v_interp-v)/tau_p
 
