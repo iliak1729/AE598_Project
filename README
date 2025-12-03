@@ -1,1 +1,12 @@
 To Do
+-- periodicity collisions/particles {Conrad}
+-- random initialization overlap check {Parin}
+-- faxen drag {Ilia}
+-- contact model {Parin}
+-- unsteady force contributions <--> material derivative {Ilia}
+-- history forces (MAYBE)
+
+Push score
+Ilia: -1
+Conrad: +1
+Parin: 0
