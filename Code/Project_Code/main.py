@@ -70,7 +70,83 @@ def main():
     plt.imshow(vel_mag[:,:,0], interpolation='spline36', cmap='PuOr_r', origin='lower', extent=[0, L, 0, L])
     x_coords = 0.5*dx + np.linspace(0, L, nx, endpoint=False); X, Y = np.meshgrid(x_coords, x_coords)
     plt.quiver(X[::3,::3], Y[::3,::3], u[::3,::3,-1],v[::3,::3,-1],color='black'); plt.axis('off')
-    plt.savefig(work_file_path+"Code/Results/hit.pdf", dpi=600, bbox_inches='tight', pad_inches=0) 
+    plt.savefig(work_file_path+"Code/Results/hit.pdf", dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.close('all')
+    # ================================================ Derivative Functions ==========================================================
+    # For tracers, since the velocity updates instantly, there is no ODE for it. 
+    # The resulting velocity is then meaningless, but the positions are correct.
+    def tracerDerivative(t,x,v):
+        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        dxdt = v_interp
+        dvdt = 0
+        return (dxdt,dvdt)
+    # This takes in stokes number as an input, so lambda functions are needed to pass it into the f(t,x,v) form that is assumed by my rk4 integrator
+    def inertialDerivative(t,x,v,St):
+        tau_p = St*tau_eta
+        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        dxdt = v
+        dvdt = (v_interp - v)/tau_p
+        return(dxdt,dvdt)
+    # Add in new derivative functions here that we will use
+    def inertialDerivativeRemake(t,x,v,St):
+        tau_p = St*tau_eta
+        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        dxdt = v
+        # I lied in the name this may actually be an acceleration. I am unsure what will be cleanest.
+        # More thought needed in this, but consistency is important. 
+        dvdt = get_drag_force(x,v,v_interp,tau_p)
+        return(dxdt,dvdt)
+    # The Associated ODE for this should be on slide 76 of the Chapter 2 notes. 
+    # Since we also need to solve the rotation equation for this, an updated rk4 solver will be needed
+    # We will also need to calculate certain values (vorticity,material derivative) of the flow field and particle
+    # These should all be additional functions in the paticle simulation files.
+    def generalBBO(t,x,v,St,CM,lambda_rho,CH,CLR,CLS):
+        return (0,0)
+    # ============================ Reproduce Inertial Particles from Homework ===========================================================
+    Nparticle = 500000
+    T = 2*tau_L
+    scaling_dt = 1/5
+    dt = scaling_dt*tau_eta
+    Nt = int(np.ceil(T/dt))
+
+    # Initial random fluid tracer locations in [0,L]^3
+    v0 = np.zeros((Nparticle,3))
+    x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
+
+    St = 1
+    (x,v) = rk4_integrator(x0,v0,dt,Nt,lambda t,x,v : inertialDerivativeRemake(t,x,v,St))
+    fig = plt.figure(layout='constrained', figsize=(10, 5)); subfigs = fig.subplots(1, 2)
+    # Initialize slice paramters
+    slice_loc = 0.25*L
+    slice_thickness = 5.0*eta
+    # Print initial particle distributionbbb
+    if UseLaTeX:
+        time_init_string = r'$t = 0$'
+        time_final_string = r'$t = 2 \tau_L$'
+    else:
+        time_init_string = 't = 0'
+        time_final_string = 't = 2 τ_L'
+    plot_particles(subfigs[0], x0, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_init_string)
+    # Print final particle distribution
+    plot_particles(subfigs[1], x, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_final_string)
+    # plt.close('all')
+
+    # ==========================
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Run only here
 if __name__ == '__main__':

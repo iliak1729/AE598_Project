@@ -11,9 +11,8 @@ def get_gravity_force(m,g):
     return 1
 
 # Fluid Force - TO DO 
-def get_drag_force(rho,u,v,w,R):
-    print("Drag")
-    return 2
+def get_drag_force(x,v,v_interp,tau_p):
+    return (v_interp-v)/tau_p
 
 # Get Saffman Lift
 def get_saffman_lift(rho,u,R):
@@ -46,17 +45,34 @@ def fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng): # Shape of input "x" is (N,
   return np.swapaxes(np.array([up,vp,wp]),0,1)
 
 
-def rk4_integrator(x0,dt,Nt,derivativeFunction): 
+def rk4_integrator(x0,v0,dt,Nt,derivativeFunction): 
   x = np.copy(x0)
+  v = np.copy(v0)
   t = 0.0
-  for i in range(Nt): 
-     # RK4 time integrator, which uses the derivative function to add everything together.
-     # x should store position and velocity and the derivative function should return the acceleration and velocity of each particle
-     # in an array that is the same size as x0.
-     k1 = derivativeFunction(t,x)
-     k2 = derivativeFunction(t+dt/2,x+dt*k1/2)
-     k3 = derivativeFunction(t+dt/2,x+dt*k2/2)
-     k4 = derivativeFunction(t+dt,x+dt*k3)
+  for i in tqdm(range(Nt)): 
+    # First Step
+    (k1x,k1v) = derivativeFunction(t,x,v)
+    # Second Step
+    (k2x,k2v) = derivativeFunction(t,x+k1x*dt/2,v+k1v*dt/2)
+    # Third Step
+    (k3x,k3v) = derivativeFunction(t,x+k2x*dt/2,v+k2v*dt/2)
+    # Fourth Step
+    (k4x,k4v) = derivativeFunction(t,x+k3x*dt,v+k3v*dt)
+    # Final Step
+    x = x + dt*(k1x+2*k2x+2*k3x+k4x)/6
+    v = v + dt*(k1v+2*k2v+2*k3v+k4v)/6
+    t = t + dt
 
-     x = x + dt*(k1+2*k2+2*k3+k4)/6
-  return x
+    # Update this for storage of x,v
+  return (x,v)
+
+# For Plotting
+def plot_particles(ax, position, z_slice_location, z_slice_thickness,L, title=''):
+  # Compute particle locations modulo L (so that position is inside [0,L]^3)
+  x = np.mod(position[:,0],L); y = np.mod(position[:,1],L); z = np.mod(position[:,2],L)
+  # Create mask for particles inside the slice with provided thickness
+  mask = np.abs(z-z_slice_location) > 0.5*z_slice_thickness
+  # Plot all particles in slice
+  ax.scatter(np.ma.MaskedArray(x, mask),np.ma.MaskedArray(y, mask),s=0.125,color='k')
+  # Set plot title
+  ax.set_title(title, fontsize=18); ax.margins(0); ax.set_xticks([]); ax.set_yticks([])
