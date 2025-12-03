@@ -7,8 +7,7 @@ from tqdm import tqdm
 
 # Gravity Force - TO DO 
 def get_gravity_force(m,g):
-    print("Gravity")
-    return 1
+    return m*g
 
 # Drag Force - Update if needed
 def get_drag_force(x,v,v_interp,tau_p):
@@ -19,14 +18,34 @@ def get_torque(wf_interp, wp, tau_r):
    return (0.5 * wf_interp - wp) / tau_r
 
 # Get Saffman Lift
-def get_saffman_lift(rho,u,R):
-    print("Saffman")
-    return 3
+def get_saffman_lift(R,rho_p,rho,mu,up,u_interp,wf_interp):
+    K = 6.46
+    coeff = 3*K/(4*np.pi * R* rho_p)
+    mag_vorticity = np.sqrt(wf_interp[:,0]**2 + wf_interp[:,1]**2 + wf_interp[:,2]**2)
+    inside_root = mu *rho/mag_vorticity
+
+    relative_velocity = u_interp - up
+    cross_product = np.zeros(relative_velocity.shape)
+    cross_product[:,0] = relative_velocity[:,1]*wf_interp[:,2] - relative_velocity[:,2]-wf_interp[:,1]
+    cross_product[:,1] = relative_velocity[:,2]-wf_interp[:,0] - relative_velocity[:,0]*wf_interp[:,2] 
+    cross_product[:,2] = relative_velocity[:,0]*wf_interp[:,1] - relative_velocity[:,1]-wf_interp[:,0]
+
+    return coeff * np.sqrt(inside_root) * cross_product
 
 # Magnus Lift
-def get_magnus_lift(rho,u,R,omega):
-    print("Gravity")
-    return 4
+def get_magnus_lift(lambda_rho,u_p,omega_p,u_interp,wf_interp):
+    coeff = 3*lambda_rho/4
+
+    relative_rotation = 0.5*wf_interp - omega_p
+
+    relative_velocity = u_interp - u_p
+
+    cross_product = np.zeros(relative_velocity.shape)
+    cross_product[:,0] = relative_rotation[:,1]*relative_velocity[:,2] - relative_rotation[:,2]*relative_velocity[:,1]
+    cross_product[:,1] = relative_rotation[:,2]*relative_velocity[:,0] - relative_rotation[:,0]*relative_velocity[:,2] 
+    cross_product[:,2] = relative_rotation[:,0]*relative_velocity[:,1] - relative_rotation[:,1]*relative_velocity[:,0]
+    
+    return coeff * cross_product
 
 # Contact Forces
 def get_contact_force(u,R,v,omega):
