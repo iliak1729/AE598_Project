@@ -9,15 +9,9 @@ from tqdm import tqdm
 def get_gravity_force(g):
     return g
 
-# Drag Force - Update if needed
-def get_drag_force(x,v,u_interp,tau_p):
-    return (u_interp-v)/tau_p
-
-# Faxen Drag Term
-def get_faxen_correction(mu,rho_particle,lap_u,lap_v,lap_w):
-   np.zeros_like()
-   return 3*mu*lap_u/(4*rho_particle)
-
+# Stokes Drag Term 
+def get_stokes_drag(v, u_interp, tau_p):
+  return (u_interp-v)/tau_p
 
 # Faxen Drag Term
 def get_faxen_correction(mu,rho_particle,lap_u):
@@ -31,8 +25,9 @@ def get_torque(wf_interp, wp, tau_r):
 def get_saffman_lift(R,rho_p,rho,mu,up,u_interp,wf_interp):
     K = 6.46
     coeff = 3*K/(4*np.pi * R* rho_p)
-    mag_vorticity = np.sqrt(wf_interp[:,0]**2 + wf_interp[:,1]**2 + wf_interp[:,2]**2)
-    inside_root = mu *rho/mag_vorticity
+    mag_vorticity = np.linalg.norm(wf_interp, axis=1, keepdims=True)
+
+    inside_root = mu * rho / mag_vorticity
 
     relative_velocity = u_interp - up
     cross_product = np.zeros(relative_velocity.shape)
@@ -83,7 +78,7 @@ def fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng): # Shape of input "x" is (N,
   wp      = phi[:,2]*(wg[ng+indices[:,0],ng+indices[:,1],ng+indices[:,2]+1]) +(1.0-phi[:,2])*(wg[ng+indices[:,0],ng+indices[:,1],ng+indices[:,2]])
   return np.swapaxes(np.array([up,vp,wp]),0,1)
 
-def fluid_vorticity_interpolator(x, L, dx, omega, ng):
+def fluid_vector_interpolator(x, L, dx, omega, ng):
   # x = Locations
   # L = domain size
   # dx = Mesh Spacing
@@ -103,10 +98,10 @@ def fluid_vorticity_interpolator(x, L, dx, omega, ng):
 # Take Laplacian Function. Includes Ghost Cells
 def laplacian_scalar_field(f,dx):
    lap = (
-      np.gradient(np.gradient(f,dx,axis=0),dx,axis=0) + 
+      np.gradient(np.gradient(f ,dx, axis=0), dx, axis=0) + 
       np.gradient(np.gradient(f, dx, axis=1), dx, axis=1) +
-    np.gradient(np.gradient(f, dx, axis=2), dx, axis=2)
-   )
+      np.gradient(np.gradient(f, dx, axis=2), dx, axis=2)
+      )
    return lap
 
 def check_particles_periodic(x, L):

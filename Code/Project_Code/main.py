@@ -35,8 +35,7 @@ def main():
     u, v, w                      = vel[:,:,:,0],  vel[:,:,:,1],  vel[:,:,:,2] # Velocity components
     vel_mag                      = np.sqrt(u**2+v**2+w**2) # Velocity magnitude
     ug, vg, wg                   = velg[:,:,:,0], velg[:,:,:,1], velg[:,:,:,2] # Velocity components with ghost layer padding (needed for gradient)
-    print(nx)
-    print(dx)
+
     # Compute velocity gradient
     grad_u_x, grad_u_y, grad_u_z = np.array(np.gradient(ug, dx))[:,ng:-ng,ng:-ng,ng:-ng]
     grad_v_x, grad_v_y, grad_v_z = np.array(np.gradient(vg, dx))[:,ng:-ng,ng:-ng,ng:-ng]
@@ -45,11 +44,12 @@ def main():
     mat_der_u = u*grad_u_x + v*grad_u_y + w*grad_u_z
     mat_der_v = u*grad_v_x + v*grad_v_y + w*grad_v_z
     mat_der_w = u*grad_w_x + v*grad_w_y + w*grad_w_z
+    mat_der_vel  = np.stack((mat_der_u, mat_der_v, mat_der_w), -1)
     # Laplacians
-    lap_u = laplacian_scalar_field(ug,dx)[ng:-ng,ng:-ng,ng:-ng]
-    lap_v = laplacian_scalar_field(vg,dx)[ng:-ng,ng:-ng,ng:-ng]
-    lap_w = laplacian_scalar_field(wg,dx)[ng:-ng,ng:-ng,ng:-ng]
-    lap_vec = np.stack((lap_u, lap_v, lap_w), axis=0)
+    lap_u = laplacian_scalar_field(ug,dx)
+    lap_v = laplacian_scalar_field(vg,dx)
+    lap_w = laplacian_scalar_field(wg,dx)
+    lap_vel  = np.stack((lap_u, lap_v, lap_w), -1)
     # Compute fluid vorticity
     omega_f = np.zeros((nx, nx, nx, 3))
     omega_f[:, :, :, 0] = grad_w_y - grad_v_z
@@ -86,6 +86,7 @@ def main():
     print("           Eddy turnover time = %.2e [s]" % tau_L)
 
 
+
     # ================================================ Plot Data Example ==========================================================
     # Plot and save slice of the simulations snapshot
     plt.imshow(vel_mag[:,:,0], interpolation='spline36', cmap='PuOr_r', origin='lower', extent=[0, L, 0, L])
@@ -108,26 +109,28 @@ def main():
         dxdt = v
         dvdt = (v_interp - v)/tau_p
         return(dxdt,dvdt)
-    # Add in new derivative functions here that we will use
-    def inertialDerivativeRemake(t,x,v,St):
-        tau_p = St*tau_eta
-        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
-        dxdt = v
-        # I lied in the name this may actually be an acceleration. I am unsure what will be cleanest.
-        # More thought needed in this, but consistency is important. 
-        dvdt = get_drag_force(x,v,v_interp,tau_p)
-        return(dxdt,dvdt)
     
-    def angularDerivative(t,x,v,w,St,tau_r):
-        tau_p = St*tau_eta
-        v_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
-        wf_interp = fluid_vorticity_interpolator(x, L, dx, omega_fg, ng)
-        dxdt = v
-
-        dvdt = get_drag_force(x,v,v_interp,tau_p)+get_magnus_lift(1,v,w,v_interp,wf_interp)
-
+    def particle_RHS(t,x,v,w,St,Re_p,rho_f):
+        # parameter setup
+        R = nu * Re_p / u_rms
+        tau_p = St * tau_eta
+        lambda_rho = 2 * R**2 / (9 * nu * tau_p)
+        rho_p = rho_f / lambda_rho
+        tau_r = R**2 / (15 * nu * lambda_rho)   
+        mu = nu * rho_f
+            
+        # interpolate quantities
+        u_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        wf_interp = fluid_vector_interpolator(x, L, dx, omega_fg, ng)
+        lap_u_interp = fluid_vector_interpolator(x, L, dx, lap_vel, ng)
         
-        dwdt = get_torque(w,wf_interp,tau_r)
+        # form RHS
+        dxdt = v
+        dvdt = ( get_stokes_drag(v, u_interp, tau_p) + 
+                 get_faxen_correction(mu, rho_p, lap_u_interp) + 
+                 get_magnus_lift(lambda_rho, v, w, u_interp, wf_interp) + 
+                 get_saffman_lift(R, rho_p, rho_f, mu, v, u_interp, wf_interp) ) 
+        dwdt = get_torque(wf_interp,w,tau_r)
 
         return(dxdt,dvdt,dwdt)
     
@@ -138,20 +141,33 @@ def main():
     def generalBBO(t,x,v,St,CM,lambda_rho,CH,CLR,CLS):
         return (0,0)
     # ============================ Reproduce Inertial Particles from Homework ===========================================================
-    Nparticle = 500000
+    Nparticle = 50000
     T = 2*tau_L
-    scaling_dt = 1/5
+    scaling_dt = 1/20
     dt = scaling_dt*tau_eta
     Nt = int(np.ceil(T/dt))
 
+    # particle simulation parameters
+    St = 1
+    Re_p = 0.1
+    rho_f = 1
+    # Physical Properties
+    R = nu * Re_p / u_rms
+    tau_p = St * tau_eta
+    lambda_rho = 2 * R**2 / (9 * nu * tau_p)
+    rho_p = rho_f / lambda_rho
+    tau_r = R**2 / (15 * nu * lambda_rho)   
+    mu = nu * rho_f
+    print("                       Radius = %.2e [m]" % R)
+    print("                        tau_r = %.2e [s]" % tau_r)
+    print("                           mu = %.2e [Pa*s]" % mu)
+    print("                   lambda_rho = %.2e [N/A]" % lambda_rho)
     # Initial random fluid tracer locations in [0,L]^3
     v0 = np.zeros((Nparticle,3))
     w0 = np.zeros((Nparticle,3))
     x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
 
-    St = 1
-    tau_r = 1
-    (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : angularDerivative(t,x,v,w,St,tau_r))    
+    (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS(t,x,v,w,St,Re_p,rho_f))    
     fig = plt.figure(layout='constrained', figsize=(10, 5)); subfigs = fig.subplots(1, 2)
     # Initialize slice paramters
     slice_loc = 0.25*L
