@@ -155,7 +155,9 @@ class ForceTest(unittest.TestCase):
         
         self.assertAlmostEqual(kn,1.26e8,-6) # kn value given in book
         
-
+    def test_cooling(self): 
+        # Parin add your cooling test case here (Also rename if you want)
+        self.assertAlmostEqual(1,1) # kn value given in book
 
 
 if __name__ == "__main__":
