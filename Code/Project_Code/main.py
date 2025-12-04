@@ -49,6 +49,7 @@ def main():
     lap_u = laplacian_scalar_field(ug,dx)[ng:-ng,ng:-ng,ng:-ng]
     lap_v = laplacian_scalar_field(vg,dx)[ng:-ng,ng:-ng,ng:-ng]
     lap_w = laplacian_scalar_field(wg,dx)[ng:-ng,ng:-ng,ng:-ng]
+    lap_vec = np.stack((lap_u, lap_v, lap_w), axis=0)
     # Compute fluid vorticity
     omega_f = np.zeros((nx, nx, nx, 3))
     omega_f[:, :, :, 0] = grad_w_y - grad_v_z

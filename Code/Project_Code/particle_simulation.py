@@ -14,7 +14,8 @@ def get_drag_force(x,v,u_interp,tau_p):
     return (u_interp-v)/tau_p
 
 # Faxen Drag Term
-def get_faxen_correction(mu,rho_particle,lap_u):
+def get_faxen_correction(mu,rho_particle,lap_u,lap_v,lap_w):
+   np.zeros_like()
    return 3*mu*lap_u/(4*rho_particle)
 
 
