@@ -100,6 +100,7 @@ def get_contact_force(
     dist = np.linalg.norm(dx)
 
     # No contact -> zero everything and reset Ft to zero
+    # Check Outside - Remove Later
     if dist >= r1 + r2 or dist == 0.0:
         a1 = np.zeros(3)
         a2 = np.zeros(3)
@@ -220,12 +221,21 @@ def check_particles_periodic(x, L):
   x = np.where(x > L, x-L, x)
   return x
 
-def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction): 
+def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction,save_history = False): 
   x = np.copy(x0) # position
   v = np.copy(v0) # translational velocity
   w = np.copy(w0) # angular velocity
   t = 0.0
-  for i in tqdm(range(Nt)): 
+  if(save_history):
+    t_store = np.zeros(Nt)
+    x_store = np.zeros((*x.shape, Nt))
+    v_store = np.zeros((*v.shape, Nt))
+    w_store = np.zeros((*w.shape, Nt))
+    
+    x_store[:,:,0] = x0.copy()
+    v_store[:,:,0] = v0.copy()
+    w_store[:,:,0] = w0.copy()
+  for i in tqdm(range(1,Nt)): 
     # First Step
     (k1x,k1v,k1w) = derivativeFunction(t,x,v,w)
     # Second Step
@@ -245,12 +255,21 @@ def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction):
     v = v + dt*(k1v+2*k2v+2*k3v+k4v)/6
     w = w + dt*(k1w+2*k2w+2*k3w+k4w)/6
     t = t + dt
-
+    
     # check if particles have left domain - remap into domain
     x = check_particles_periodic(x, L)
 
     # Update this for storage of x,v,w
-  return (x,v,w)
+    if(save_history):
+      t_store[i] = t
+      x_store[:,:,i] = x
+      v_store[:,:,i] = v
+      w_store[:,:,i] = w
+  # Return
+  if(save_history):
+    return (x_store,v_store,w_store,t_store)
+  else:
+    return (x,v,w)
 
 # For Plotting
 def plot_particles(ax, position, z_slice_location, z_slice_thickness,L, title=''):
