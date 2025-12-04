@@ -3,7 +3,8 @@ To Do
 -- periodicity particles {Conrad} - Done
 -- random initialization overlap check {Parin}
 -- contact model {Parin}
--- unsteady force contributions {Ilia}
+-- unsteady force contributions + material derivative {Ilia} - Done
+-- Faxen Correction + Laplacian {Ilia} - Done
 -- history forces (MAYBE)
 
 Push score
