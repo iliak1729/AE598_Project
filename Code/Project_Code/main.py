@@ -19,7 +19,7 @@ def main():
     plt.rcParams['savefig.dpi'] = 300
     plt.rcParams.update({'font.size': 18})
     # The following lines import LaTeX packages to make plots nicer.
-    UseLaTeX = False # This can be set to "True" if LaTeX is available on your computer
+    UseLaTeX = True # This can be set to "True" if LaTeX is available on your computer
     if UseLaTeX:
         plt.rcParams['text.usetex'] = True
         plt.rc('text.latex', preamble=r'\usepackage{amsmath} \usepackage{amssymb} \usepackage{color}')

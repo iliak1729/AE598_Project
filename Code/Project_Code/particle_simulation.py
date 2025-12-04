@@ -52,10 +52,119 @@ def get_magnus_lift(lambda_rho,u_p,omega_p,u_interp,wf_interp):
 
     return coeff * cross_product
 
+# surface (contact) velocity
+def surface_velocity_3d(v, omega, r, n, sign):
+    """
+    Surface velocity at contact point.
+    v      : linear velocity 
+    omega  : angular velocity
+    r      : radius
+    n      : unit normal from particle 1 -> 2
+    sign   : +1 for particle 1 (contact at +r n)
+             -1 for particle 2 (contact at -r n)
+    """
+    r_c = sign * r * n            # center -> contact point
+    v_rot = np.cross(omega, r_c)  # rotational velocity at contact
+    return v + v_rot, r_c
+
 # Contact Forces
-def get_contact_force(u,R,v,omega):
-    print("Contact")
-    return 5
+def get_contact_force(
+    x1, v1, omega1, m1, r1,
+    x2, v2, omega2, m2, r2,
+    k, eta, mu, kt, FtOld, dt
+):
+    """
+    Inputs:
+      x1, x2    : positions
+      v1, v2    : linear velocities
+      omega1, omega2 : angular velocities
+      m1, m2    : masses
+      r1, r2    : radii
+      k, eta    : normal stiffness and damping
+      mu        : friction coefficient
+      kt        : tangential stiffness
+      FtOld     : previous tangential force
+      dt        : time step
+
+    Returns:
+      a1, a2        : linear accelerations
+      alpha1, alpha2: angular accelerations
+      Ft_new        : updated tangential force to store for next step
+    """
+    # Solid sphere moment of inertia
+    I1 = 0.4 * m1 * r1**2
+    I2 = 0.4 * m2 * r2**2
+
+    # Vector from 1 to 2
+    dx = x2 - x1
+    dist = np.linalg.norm(dx)
+
+    # No contact -> zero everything and reset Ft to zero
+    if dist >= r1 + r2 or dist == 0.0:
+        a1 = np.zeros(3)
+        a2 = np.zeros(3)
+        alpha1 = np.zeros(3)
+        alpha2 = np.zeros(3)
+        Ft_new = np.zeros(3)
+        return a1, a2, alpha1, alpha2, Ft_new
+
+    # Unit normal
+    n = dx / dist
+
+    # Overlap
+    delta = (r1 + r2) - dist
+
+    # Surface velocities at contact
+    v_surf1, r_c1 = surface_velocity_3d(v1, omega1, r1, n, +1)
+    v_surf2, r_c2 = surface_velocity_3d(v2, omega2, r2, n, -1)
+
+    # Relative contact velocity
+    v_rel = v_surf1 - v_surf2
+
+    # Normal and tangential components
+    vn = np.dot(v_rel, n)
+    v_n = vn * n
+    v_t = v_rel - v_n
+    vt_mag = np.linalg.norm(v_t)
+
+    # Normal force (spring + dashpot)
+    F_n = -k * delta * n - eta * v_n
+
+    # tangential force
+    if vt_mag > 1e-12:
+        # Trial tangential spring update
+        FtTrial = FtOld - kt * v_t * dt
+        phi_trial = np.linalg.norm(FtTrial) - mu * np.linalg.norm(F_n)
+
+        if phi_trial <= 0.0:
+            F_t = FtTrial
+        else:
+            F_t = mu * np.linalg.norm(F_n) * FtTrial / np.linalg.norm(FtTrial)
+
+        Ft_new = F_t.copy()
+    else:
+        F_t = np.zeros(3)
+        Ft_new = np.zeros(3)
+
+    # Total forces on particles
+    F1 = F_n + F_t
+    F2 = -F1
+
+    # Torques from tangential force
+    tau1 = np.cross(r_c1, F_t)
+    tau2 = np.cross(r_c2, -F_t)
+
+    # Linear accelerations
+    a1 = F1 / m1
+    a2 = F2 / m2
+
+    # Angular accelerations
+    alpha1 = tau1 / I1
+    alpha2 = tau2 / I2
+
+    return a1, a2, alpha1, alpha2, Ft_new
+
+
 # Virtual Mass
 def get_virtual_mass_force(mat_der_u,lambda_p):
    # The tricky part with this is that it has a dUp/dt in the equation, which is also what we are solving for. This means that when we add it to the LHS and then divide
