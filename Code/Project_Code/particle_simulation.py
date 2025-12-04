@@ -61,6 +61,12 @@ def get_magnus_lift(lambda_rho,u_p,omega_p,u_interp,wf_interp):
 def get_contact_force(u,R,v,omega):
     print("Contact")
     return 5
+# Virtual Mass
+def get_virtual_mass_force(mat_der_u,lambda_p):
+   # The tricky part with this is that it has a dUp/dt in the equation, which is also what we are solving for. This means that when we add it to the LHS and then divide
+   # that term basically acts as a (1+0.5*lambda_p) scale factor to other terms. We will return that scaling factor
+   a_virt = 0.5*lambda_p*mat_der_u
+   return a_virt,1+0.5*lambda_p
 
 # Linear velocity interpolator -> return fluid velocity interpolated at locations x
 def fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng): # Shape of input "x" is (N,3)
