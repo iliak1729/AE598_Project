@@ -4,6 +4,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import math
+from collections import defaultdict
+from typing import Tuple, Optional
 
 # Gravity Force - TO DO 
 def get_gravity_force(g):
@@ -281,3 +284,119 @@ def plot_particles(ax, position, z_slice_location, z_slice_thickness,L, title=''
   ax.scatter(np.ma.MaskedArray(x, mask),np.ma.MaskedArray(y, mask),s=0.125,color='k')
   # Set plot title
   ax.set_title(title, fontsize=18); ax.margins(0); ax.set_xticks([]); ax.set_yticks([])
+
+# initializing non-overlapping spherical particles in a periodic cubic domain
+def initialize_particles(
+    domain_origin: Tuple[float, float, float],
+    L: float,
+    dp: float,
+    phi_v: float,
+    rng: Optional[np.random.Generator] = None,
+    max_packing_fraction: float = 0.64,
+    max_attempts_per_particle: int = 10_000,
+):
+    """
+    Initialize non-overlapping spherical particles in a periodic cubic domain.
+
+    Parameters
+    ----------
+    domain_origin : Coordinates of lower left corner. (x0, y0, z0)
+    L : Domain length
+    dp : Particle diameter
+    phi_v : Desired particle volume fraction
+    rng : numpy.random.Generator (if specific seed is needed)
+    max_packing_fraction : Upper bound on volume fraction
+    max_attempts_per_particle : Maximum attempts to place each particle to avoid overlap and infinite loop
+
+    Returns
+    -------
+    positions : (N, 3) ndarray of particle centers in global coordinates
+    radii : (N,) ndarray of particle radii
+    """
+
+    if rng is None:
+        rng = np.random.default_rng()
+        
+    domain_origin = np.asarray(domain_origin, dtype=float)
+    
+    # Number of particles
+    r = 0.5 * dp
+    volume_particle = (4.0 / 3.0) * math.pi * r**3
+    volume_domain = L**3
+    N_target = math.ceil(phi_v * volume_domain / volume_particle)
+    
+    # Maximum possible under packing constraint
+    if max_packing_fraction is not None:
+        N_max = math.floor(max_packing_fraction * volume_domain / volume_particle)
+        if N_target > N_max:
+            N_target = N_max
+    
+    # Working in local coordinates x' in [0, L)^3, then shift to global at the end
+
+    # cell specific mesh
+    n_cells = int(L / (2.0 * r))
+    cell_size = L / n_cells
+    
+    # cell_list: maps integer cell index (i, j, k) to list of particle indices
+    cell_list = defaultdict(list)
+    
+    # particle centers in local coordinates
+    positions_local = np.zeros((N_target, 3), dtype=float)
+    radii = np.full(N_target, r, dtype=float)
+    
+    def get_cell_index(x_local):
+        """Return cell index (i, j, k) for a particle"""
+        idx = np.floor(x_local / cell_size).astype(int)
+        idx = np.clip(idx, 0, n_cells - 1)
+        return tuple(idx)
+    
+    def minimum_periodic_distance_squared(x1, x2):
+        dx = x2 - x1
+        dx = dx - L * np.round(dx / L)
+        return np.dot(dx, dx)
+    
+    def has_overlap(x_local):
+        cell_idx = get_cell_index(x_local)
+        # one layer of neighbors
+        for ii in (-1, 0, 1):
+            for jj in (-1, 0, 1):
+                for kk in (-1, 0, 1):
+                    neighbor_idx = (
+                        (cell_idx[0] + ii) % n_cells,
+                        (cell_idx[1] + jj) % n_cells,
+                        (cell_idx[2] + kk) % n_cells,
+                    )
+                    for j in cell_list.get(neighbor_idx, []):
+                        dist2 = minimum_periodic_distance_squared(
+                            positions_local[j], x_local
+                        )
+                        if dist2 < (2.0 * r) ** 2:
+                            return True
+        return False
+    
+    placed = 0
+    for i in range(N_target):
+        success = False
+        for attempt in range(max_attempts_per_particle):
+            # random position in domain
+            x_local = rng.random(3) * L
+            if not has_overlap(x_local):
+                positions_local[i] = x_local
+                cell_idx = get_cell_index(x_local)
+                cell_list[cell_idx].append(i)
+                placed += 1
+                success = True
+                break
+        if not success:
+            print(
+                f"Warning: could only place {placed} particles out of {N_target} "
+                f"before hitting the maximum number of attempts. "
+            )
+            # Truncate arrays to the number actually placed
+            positions_local = positions_local[:placed]
+            radii = radii[:placed]
+            break
+    
+    # back to global coordinates
+    positions_global = positions_local + domain_origin[None, :]
+    return positions_global, radii

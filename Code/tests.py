@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Project_Code.particle_simulation import *
 import os
+from typing import Tuple, Optional
 
 # To run tests from vscode, use the testing tab on the left. Set up testing to look in the Code folder.
 # To run from terminal, run: python tests.py
@@ -15,7 +16,7 @@ class ForceTest(unittest.TestCase):
     def setUpClass(cls):
         # Important Inputs
         cls.work_file_path = os.getcwd()  
-        data_file_path = cls.work_file_path + '/Code/Flow_Data/hit/ae598-mf-hw3-data.npz'
+        data_file_path = cls.work_file_path + '/Flow_Data/hit/ae598-mf-hw3-data.npz'
         # This will install the packages needed for the HW (if these are not installed yet)
         plt.rcParams['figure.dpi'] = 300
         plt.rcParams['savefig.dpi'] = 300
@@ -84,6 +85,55 @@ class ForceTest(unittest.TestCase):
         print("Running Saff")
         self.assertTrue(5 > 1)
 
+    def test_particle_initialization(self):
+        print("Running particle initialization overlap test")
+
+        # params
+        L = self.L
+        origin = (0.0, 0.0, 0.0)
+        dp = L / 20.0
+        phi_v = 0.1
+        rng = np.random.default_rng(seed=42)
+
+        positions, radii = initialize_particles(origin, L, dp, phi_v, rng)
+
+        # checking if there are any overlaps
+        N = positions.shape[0]
+        r = radii[0]
+        min_dist2 = (2.0 * r) ** 2
+
+        # not ideal n^2 check (ok for test)
+        for i in range(N):
+            for j in range(i+1, N):
+                dx = positions[j] - positions[i]
+                dx = dx - L * np.round(dx / L)
+                dist2 = np.dot(dx, dx)
+                self.assertGreaterEqual(
+                    dist2,
+                    min_dist2 * (1.0 - 1e-12),
+                    msg=f"Overlap detected between particles {i} and {j}"
+                )
+
+        results_dir = os.path.join(self.work_file_path, "Results")
+        os.makedirs(results_dir, exist_ok=True)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], s=5)
+
+        ax.set_xlabel(r"$x$")
+        ax.set_ylabel(r"$y$")
+        ax.set_zlabel(r"$z$")
+        ax.set_xlim(origin[0], origin[0] + L)
+        ax.set_ylim(origin[1], origin[1] + L)
+        ax.set_zlim(origin[2], origin[2] + L)
+        ax.set_title("Initialized particle distribution")
+
+        out_path = os.path.join(results_dir, "particle_initialization.png")
+        plt.savefig(out_path, dpi=300)
+        plt.close(fig)
+
+
     def test_head_on_collision(self):
         v = 10
         rho = 8000
@@ -150,7 +200,7 @@ class ForceTest(unittest.TestCase):
             # Right now I need to make FtOld global. This makes me unhappy. Is there a better way to do this?
             plt.plot(tp,vp[0,0,:],label=fr'COR = {eSet[i]:.1f}')
         plt.legend()
-        plt.savefig(self.work_file_path +"/Code/Results/collision_test_velocty.png", dpi=300)
+        plt.savefig(self.work_file_path +"/Results/collision_test_velocity.png", dpi=300)
         
         
         self.assertAlmostEqual(kn,1.26e8,-6) # kn value given in book
