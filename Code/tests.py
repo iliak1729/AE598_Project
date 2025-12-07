@@ -78,12 +78,31 @@ class ForceTest(unittest.TestCase):
 
         
     def test_magnus(self):
-        print("Running Magnus")
-        self.assertEqual(1+1,2)
+        lambda_rho = 1
+        u_p = np.array([np.array([1,0,0])])
+        omega_p = np.array([np.array([0,0,1])])
+        u_interp = np.array([np.array([0,0,0])])
+        wf_interp = np.array([np.array([0,0,0])])
+        result = get_magnus_lift(lambda_rho,u_p,omega_p,u_interp,wf_interp)
+
+        self.assertEqual(result[0,0],0)
+        self.assertEqual(result[0,1],0.75)
+        self.assertEqual(result[0,2],0)
 
     def test_saffman(self):
-        print("Running Saff")
-        self.assertTrue(5 > 1)
+        R = 1
+        rho_p = 1000
+        rho = 1
+        mu = 0.1
+        up = np.array([np.array([1,0,0])])
+        u_interp = np.array([np.array([0,0,0])])
+        wf_interp = np.array([np.array([0,0,1])])
+        result = get_saffman_lift(R,rho_p,rho,mu,up,u_interp,wf_interp)
+
+        self.assertEqual(result[0,0],0)
+        self.assertAlmostEqual(result[0,1],0.000487690065292,9)
+        self.assertEqual(result[0,2],0)
+        
 
     def test_particle_initialization(self):
         print("Running particle initialization overlap test")

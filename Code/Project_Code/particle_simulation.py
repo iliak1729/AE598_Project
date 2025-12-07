@@ -83,6 +83,39 @@ def get_spring_damping_params(e, ma, mb, t_col):
     eta_n = -math.log(e) / math.sqrt(math.pi**2 + (math.log(e))**2) * 2.0 * math.sqrt(m * kn)  # normal damping
     return kn, eta_n
 
+def get_spring_damping_params_book(e,
+                                   RA,rhoA,EA,alphaA,
+                                   RB,rhoB,EB,alphaB):
+  """
+  e     : coefficient of restitution
+
+  RA    : radius of particle A
+  rhoA  : density of particle A
+  EA    : Young's Modulus of particle A
+  alphaA: Area Parameter of particle A
+  
+  RB    : radius of particle B
+  rhoB  : density of particle B
+  EB    : Young's Modulus of particle B
+  alphaB: Area Parameter of particle B
+  """
+  kA = alphaA*np.pi*EA*RA
+  kB = alphaB*np.pi*EB*RB
+
+  kn = (kA*kB)/(kA+kB)
+
+  VA = 4*np.pi*RA**3/3
+  mA = rhoA*VA
+  VB = 4*np.pi*RB**3/3
+  mB = rhoB*VB
+
+  meff = (mA*mB)/(mA+mB)
+  Ccr = 2*np.sqrt(meff*kn)
+
+  zeta = -np.log(e)/np.sqrt(np.pi**2 + np.log(e)**2)
+  eta_n = zeta*Ccr
+
+  return kn,eta_n
 
 # Contact Forces
 def get_contact_force(
