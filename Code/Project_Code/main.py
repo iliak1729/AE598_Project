@@ -56,11 +56,12 @@ def main():
     mat_der_v = u*grad_v_x + v*grad_v_y + w*grad_v_z
     mat_der_w = u*grad_w_x + v*grad_w_y + w*grad_w_z
     mat_der_vel  = np.stack((mat_der_u, mat_der_v, mat_der_w), -1)
+    mat_der_vel_g = np.pad(mat_der_vel, ((ng,ng),(ng,ng),(ng,ng),(0,0)), 'wrap') # Padding domain with 'ng' periodic ghost layers
     # Strain rate and rotation rate tensors
     strain_rate = 0.5 * (gradU + np.swapaxes(gradU, -1, -2))  # symmetric
     rotation_rate = 0.5 * (gradU - np.swapaxes(gradU, -1, -2))  # antisymmetric
 
-    
+
     # Laplacians
     lap_u = laplacian_scalar_field(ug,dx)
     lap_v = laplacian_scalar_field(vg,dx)
@@ -163,9 +164,12 @@ def main():
         u_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
         wf_interp = fluid_vector_interpolator(x, L, dx, omega_fg, ng)
         lap_u_interp = fluid_vector_interpolator(x, L, dx, lap_vel, ng)
+        mat_der_interp = fluid_vector_interpolator(x,L,dx,mat_der_vel_g,ng)
+
         # Get accelerations
         a_drag = get_stokes_drag(v, u_interp, tau_p)
-        a_faxen = get_faxen_correction(mu, rho_p, lap_u_interp)
+        a_faxen = get_faxen_correction(mu,rho_p,lap_u_interp)
+        a_undisturbed = get_undisturbed_force(lambda_rho,mat_der_interp,g)
         a_magnus = get_magnus_lift(lambda_rho, v, w, u_interp, wf_interp)
         a_saffman = get_saffman_lift(R, rho_p, rho_f, mu, v, u_interp, wf_interp)
         # Update History
@@ -177,6 +181,9 @@ def main():
             a_faxen_mag = np.linalg.norm(a_faxen,axis=1)
             a_faxen_average = np.sum(a_faxen_mag)/len(a_faxen_mag)
 
+            a_undisturbed_mag = np.linalg.norm(a_undisturbed,axis=1)
+            a_undisturbed_average = np.sum(a_undisturbed_mag)/len(a_undisturbed_mag)
+
             a_magnus_mag = np.linalg.norm(a_magnus,axis=1)
             a_magnus_average = np.sum(a_magnus_mag)/len(a_magnus_mag)
 
@@ -187,6 +194,7 @@ def main():
             histories_array[i[0],1] = a_faxen_average
             histories_array[i[0],2] = a_magnus_average
             histories_array[i[0],3] = a_saffman_average
+            histories_array[i[0],4] = a_undisturbed_average
             i[0] += 1
             j[0] = -1
         j[0] += 1
@@ -251,14 +259,14 @@ def main():
     # ========================== Force History Graph - No Collisions =======================================
     Nparticle = 5000
     T = 2*tau_L
-    scaling_dt = 1/20
+    scaling_dt = 1/15
     dt = scaling_dt*tau_eta
     Nt = int(np.ceil(T/dt))
     plt.show()
     # particle simulation parameters
     St = 10
     Re_p = 0.1
-    rho_f = 1
+    rho_f = 100
     # Physical Properties
     R = nu * Re_p / u_rms
     tau_p = St * tau_eta
@@ -274,7 +282,7 @@ def main():
     v0 = np.zeros((Nparticle,3))
     w0 = np.zeros((Nparticle,3))
     x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
-    history_store = np.zeros((Nt,4))
+    history_store = np.zeros((Nt,5))
     count = [0]
     innerCount = [0]
     (x, v, w,t) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_with_history(t,x,v,w,St,Re_p,rho_f,history_store,count,innerCount),True)    
@@ -282,28 +290,58 @@ def main():
     x = x[:,:,-1]
     v = v[:,:,-1]
     w = w[:,:,-1]
-    fig = plt.figure(layout='constrained', figsize=(10, 5)); subfigs = fig.subplots(1, 2)
-    # Initialize slice paramters
-    slice_loc = 0.25*L
-    slice_thickness = 5.0*eta
-    # Print initial particle distributionbbb
-    if UseLaTeX:
-        time_init_string = r'$t = 0$'
-        time_final_string = r'$t = 2 \tau_L$'
-    else:
-        time_init_string = 't = 0'
-        time_final_string = 't = 2 τ_L'
-    plot_particles(subfigs[0], x0, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_init_string)
-    # Print final particle distribution
-    plot_particles(subfigs[1], x, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_final_string)
 
     plt.figure()
     plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,0],label ="drag")
     plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,1],label ="Faxen")
     plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,2],label ="magnus")
     plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,3],label ="saffman")
+    plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,4],label ="undisturbed")
     plt.legend()
     plt.show()
+    # ========================== Force History Graph - Drag vs Stokes =======================================
+    # Nparticle = 5000
+    # T = 2*tau_L
+    # scaling_dt = 1/15
+    # dt = scaling_dt*tau_eta
+    # Nt = int(np.ceil(T/dt))
+    # plt.show()
+    # # particle simulation parameters
+    # St = 0.1
+    # Re_p = 0.1
+    # rho_f = 100
+    # # Physical Properties
+    # R = nu * Re_p / u_rms
+    # tau_p = St * tau_eta
+    # lambda_rho = 2 * R**2 / (9 * nu * tau_p)
+    # rho_p = rho_f / lambda_rho
+    # tau_r = R**2 / (15 * nu * lambda_rho)   
+    # mu = nu * rho_f
+    # print("                       Radius = %.2e [m]" % R)
+    # print("                        tau_r = %.2e [s]" % tau_r)
+    # print("                           mu = %.2e [Pa*s]" % mu)
+    # print("                   lambda_rho = %.2e [N/A]" % lambda_rho)
+    # # Initial random fluid tracer locations in [0,L]^3
+    # v0 = np.zeros((Nparticle,3))
+    # w0 = np.zeros((Nparticle,3))
+    # x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
+    # history_store = np.zeros((Nt,5))
+    # count = [0]
+    # innerCount = [0]
+    # (x, v, w,t) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_with_history(t,x,v,w,St,Re_p,rho_f,history_store,count,innerCount),True)    
+    # print(x.shape)
+    # x = x[:,:,-1]
+    # v = v[:,:,-1]
+    # w = w[:,:,-1]
+
+    # plt.figure()
+    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,0],label ="drag")
+    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,1],label ="Faxen")
+    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,2],label ="magnus")
+    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,3],label ="saffman")
+    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,4],label ="undisturbed")
+    # plt.legend()
+    # plt.show()
 
 
 

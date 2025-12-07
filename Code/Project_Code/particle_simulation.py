@@ -23,6 +23,9 @@ def get_faxen_correction(mu,rho_particle,lap_u):
 # Torque
 def get_torque(wf_interp, wp, tau_r):
    return (0.5 * wf_interp - wp) / tau_r
+# Undistrubed Force
+def get_undisturbed_force(lambda_rho,mat_der_u,g):
+   return lambda_rho*(mat_der_u - g)
 
 # Get Saffman Lift
 def get_saffman_lift(R,rho_p,rho,mu,up,u_interp,wf_interp):
