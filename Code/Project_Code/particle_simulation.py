@@ -231,12 +231,29 @@ def laplacian_scalar_field(f,dx):
       )
    return lap
 
+# def check_particles_periodic(x, L):
+#   # domain beg
+#   x = np.where(x < 0, x+L, x)
+#   # domain end
+#   x = np.where(x > L, x-L, x)
+#   return x
+
 def check_particles_periodic(x, L):
-  # domain beg
-  x = np.where(x < 0, x+L, x)
-  # domain end
-  x = np.where(x > L, x-L, x)
-  return x
+   """
+   Wrapping particle positions into a periodic domain [0, L)^3.
+   x : (N, 3) ndarray of particle positions
+   """
+   return x % L
+
+def min_dx_periodic(x1, x2, L):
+    """
+    Minimum periodic distance vector from x1 to x2 in [0, L)^3.
+    x1, x2 : (N, 3) ndarray of particle positions
+    L      : domain size
+    """
+    dx = x2 - x1
+    dx = dx - L * np.round(dx / L)
+    return dx
 
 def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction,save_history = False): 
   x = np.copy(x0) # position
@@ -337,7 +354,7 @@ def initialize_particles(
     r = 0.5 * dp
     volume_particle = (4.0 / 3.0) * math.pi * r**3
     volume_domain = L**3
-    N_target = math.ceil(phi_v * volume_domain / volume_particle)
+    N_target = int(phi_v * volume_domain / volume_particle)
     
     # Maximum possible under packing constraint
     if max_packing_fraction is not None:
