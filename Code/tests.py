@@ -6,26 +6,28 @@ import os
 from typing import Tuple, Optional
 
 # To run tests from vscode, use the testing tab on the left. Set up testing to look in the Code folder.
-# To run from terminal, run: python tests.py
-# for all tests
-# For specific tests, run: python -m unittest tests.ForceTest.test_magnus tests.ForceTest.test_saffman
-# or simiilar for a specific subset
+# To run from terminal, run: python ./Code/tests.py
+# for all tests. Note this means you need to be in the AE598_Project directory.
+
 class ForceTest(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
         # Important Inputs
         cls.work_file_path = os.getcwd()  
-        data_file_path = cls.work_file_path + '/Flow_Data/hit/ae598-mf-hw3-data.npz'
+        data_file_path = cls.work_file_path + '/Code/Flow_Data/hit/ae598-mf-hw3-data.npz'
+
         # This will install the packages needed for the HW (if these are not installed yet)
         plt.rcParams['figure.dpi'] = 300
         plt.rcParams['savefig.dpi'] = 300
         plt.rcParams.update({'font.size': 18})
+
         # The following lines import LaTeX packages to make plots nicer.
         UseLaTeX = True # This can be set to "True" if LaTeX is available on your computer
         if UseLaTeX:
             plt.rcParams['text.usetex'] = True
             plt.rc('text.latex', preamble=r'\usepackage{amsmath} \usepackage{amssymb} \usepackage{color}')
+
         # ================================================ Load Data ==========================================================
         loaded_data = np.load(data_file_path) # If your data file is located in a separate folder, you need to provide the full path to the file
         cls.L                            = float(loaded_data['L']) # Domain length
@@ -133,7 +135,7 @@ class ForceTest(unittest.TestCase):
                     msg=f"Overlap detected between particles {i} and {j}"
                 )
 
-        results_dir = os.path.join(self.work_file_path, "Results")
+        results_dir = os.path.join(self.work_file_path, "Code/Results")
         os.makedirs(results_dir, exist_ok=True)
 
         fig = plt.figure()
@@ -195,7 +197,6 @@ class ForceTest(unittest.TestCase):
         def collision_derivative(t,xi,vi,wi,e):
             zeta = -np.log(e)/(np.sqrt(np.pi**2 + (np.log(e))**2)) # Changes with chaning e
             eta = Ccr*zeta
-            global FtOld
             x1 = xi[:,0]
             x2 = xi[:,1]
             v1 = vi[:,0]
@@ -203,7 +204,7 @@ class ForceTest(unittest.TestCase):
             omega1 = wi[:,0]
             omega2 = wi[:,1]
             
-            a1,a2,alpha1,alpha2,FtOld = get_contact_force(x1,v1,omega1,m1,r1,
+            a1,a2,alpha1,alpha2,FtT = get_contact_force(x1,v1,omega1,m1,r1,
                                                           x2,v2,omega2,m2,r2,
                                                           kn,eta,mu,kt,FtOld,dt)
 
@@ -219,7 +220,7 @@ class ForceTest(unittest.TestCase):
             # Right now I need to make FtOld global. This makes me unhappy. Is there a better way to do this?
             plt.plot(tp,vp[0,0,:],label=fr'COR = {eSet[i]:.1f}')
         plt.legend()
-        plt.savefig(self.work_file_path +"/Results/collision_test_velocity.png", dpi=300)
+        plt.savefig(self.work_file_path +"/Code/Results/collision_test_velocity.png", dpi=300)
         
         
         self.assertAlmostEqual(kn,1.26e8,-6) # kn value given in book

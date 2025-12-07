@@ -40,11 +40,27 @@ def main():
     grad_u_x, grad_u_y, grad_u_z = np.array(np.gradient(ug, dx))[:,ng:-ng,ng:-ng,ng:-ng]
     grad_v_x, grad_v_y, grad_v_z = np.array(np.gradient(vg, dx))[:,ng:-ng,ng:-ng,ng:-ng]
     grad_w_x, grad_w_y, grad_w_z = np.array(np.gradient(wg, dx))[:,ng:-ng,ng:-ng,ng:-ng]
+    gradU = np.zeros(grad_u_x.shape + (3,3))
+    gradU[..., 0, 0] = grad_u_x
+    gradU[..., 0, 1] = grad_u_y
+    gradU[..., 0, 2] = grad_u_z
+    gradU[..., 1, 0] = grad_v_x
+    gradU[..., 1, 1] = grad_v_y
+    gradU[..., 1, 2] = grad_v_z
+    gradU[..., 2, 0] = grad_w_x
+    gradU[..., 2, 1] = grad_w_y
+    gradU[..., 2, 2] = grad_w_z
+
     # Compute material derivative - assuming no d/dt
     mat_der_u = u*grad_u_x + v*grad_u_y + w*grad_u_z
     mat_der_v = u*grad_v_x + v*grad_v_y + w*grad_v_z
     mat_der_w = u*grad_w_x + v*grad_w_y + w*grad_w_z
     mat_der_vel  = np.stack((mat_der_u, mat_der_v, mat_der_w), -1)
+    # Strain rate and rotation rate tensors
+    strain_rate = 0.5 * (gradU + np.swapaxes(gradU, -1, -2))  # symmetric
+    rotation_rate = 0.5 * (gradU - np.swapaxes(gradU, -1, -2))  # antisymmetric
+
+    
     # Laplacians
     lap_u = laplacian_scalar_field(ug,dx)
     lap_v = laplacian_scalar_field(vg,dx)
@@ -133,6 +149,54 @@ def main():
         dwdt = get_torque(wf_interp,w,tau_r)
 
         return(dxdt,dvdt,dwdt)
+
+    def particle_RHS_with_history(t,x,v,w,St,Re_p,rho_f,histories_array,i,j):
+        # parameter setup
+        R = nu * Re_p / u_rms
+        tau_p = St * tau_eta
+        lambda_rho = 2 * R**2 / (9 * nu * tau_p)
+        rho_p = rho_f / lambda_rho
+        tau_r = R**2 / (15 * nu * lambda_rho)   
+        mu = nu * rho_f
+            
+        # interpolate quantities
+        u_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
+        wf_interp = fluid_vector_interpolator(x, L, dx, omega_fg, ng)
+        lap_u_interp = fluid_vector_interpolator(x, L, dx, lap_vel, ng)
+        # Get accelerations
+        a_drag = get_stokes_drag(v, u_interp, tau_p)
+        a_faxen = get_faxen_correction(mu, rho_p, lap_u_interp)
+        a_magnus = get_magnus_lift(lambda_rho, v, w, u_interp, wf_interp)
+        a_saffman = get_saffman_lift(R, rho_p, rho_f, mu, v, u_interp, wf_interp)
+        # Update History
+        if(j[0] == 3):
+            # Calculate Mean values
+            a_drag_mag = np.linalg.norm(a_drag,axis=1)
+            a_drag_average = np.sum(a_drag_mag)/len(a_drag_mag)
+
+            a_faxen_mag = np.linalg.norm(a_faxen,axis=1)
+            a_faxen_average = np.sum(a_faxen_mag)/len(a_faxen_mag)
+
+            a_magnus_mag = np.linalg.norm(a_magnus,axis=1)
+            a_magnus_average = np.sum(a_magnus_mag)/len(a_magnus_mag)
+
+            a_saffman_mag = np.linalg.norm(a_saffman,axis=1)
+            a_saffman_average = np.sum(a_saffman_mag)/len(a_saffman_mag)
+
+            histories_array[i[0],0] = a_drag_average
+            histories_array[i[0],1] = a_faxen_average
+            histories_array[i[0],2] = a_magnus_average
+            histories_array[i[0],3] = a_saffman_average
+            i[0] += 1
+            j[0] = -1
+        j[0] += 1
+        
+        # form RHS
+        dxdt = v
+        dvdt = (a_drag + a_faxen + a_magnus + a_saffman)
+        dwdt = get_torque(wf_interp,w,tau_r)
+
+        return(dxdt,dvdt,dwdt)
     
     # The Associated ODE for this should be on slide 76 of the Chapter 2 notes. 
     # Since we also need to solve the rotation equation for this, an updated rk4 solver will be needed
@@ -141,7 +205,7 @@ def main():
     def generalBBO(t,x,v,St,CM,lambda_rho,CH,CLR,CLS):
         return (0,0)
     # ============================ Reproduce Inertial Particles from Homework ===========================================================
-    Nparticle = 50000
+    Nparticle = 500
     T = 2*tau_L
     scaling_dt = 1/20
     dt = scaling_dt*tau_eta
@@ -182,9 +246,63 @@ def main():
     plot_particles(subfigs[0], x0, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_init_string)
     # Print final particle distribution
     plot_particles(subfigs[1], x, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_final_string)
-    # plt.close('all')
+    plt.close('all')
 
-    # ==========================
+    # ========================== Force History Graph - No Collisions =======================================
+    Nparticle = 5000
+    T = 2*tau_L
+    scaling_dt = 1/20
+    dt = scaling_dt*tau_eta
+    Nt = int(np.ceil(T/dt))
+    plt.show()
+    # particle simulation parameters
+    St = 10
+    Re_p = 0.1
+    rho_f = 1
+    # Physical Properties
+    R = nu * Re_p / u_rms
+    tau_p = St * tau_eta
+    lambda_rho = 2 * R**2 / (9 * nu * tau_p)
+    rho_p = rho_f / lambda_rho
+    tau_r = R**2 / (15 * nu * lambda_rho)   
+    mu = nu * rho_f
+    print("                       Radius = %.2e [m]" % R)
+    print("                        tau_r = %.2e [s]" % tau_r)
+    print("                           mu = %.2e [Pa*s]" % mu)
+    print("                   lambda_rho = %.2e [N/A]" % lambda_rho)
+    # Initial random fluid tracer locations in [0,L]^3
+    v0 = np.zeros((Nparticle,3))
+    w0 = np.zeros((Nparticle,3))
+    x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
+    history_store = np.zeros((Nt,4))
+    count = [0]
+    innerCount = [0]
+    (x, v, w,t) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_with_history(t,x,v,w,St,Re_p,rho_f,history_store,count,innerCount),True)    
+    print(x.shape)
+    x = x[:,:,-1]
+    v = v[:,:,-1]
+    w = w[:,:,-1]
+    fig = plt.figure(layout='constrained', figsize=(10, 5)); subfigs = fig.subplots(1, 2)
+    # Initialize slice paramters
+    slice_loc = 0.25*L
+    slice_thickness = 5.0*eta
+    # Print initial particle distributionbbb
+    if UseLaTeX:
+        time_init_string = r'$t = 0$'
+        time_final_string = r'$t = 2 \tau_L$'
+    else:
+        time_init_string = 't = 0'
+        time_final_string = 't = 2 τ_L'
+    plot_particles(subfigs[0], x0, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_init_string)
+    # Print final particle distribution
+    plot_particles(subfigs[1], x, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_final_string)
+
+    plt.figure()
+    plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,0],label ="drag")
+    plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,1],label ="Faxen")
+    plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,2],label ="magnus")
+    plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,3],label ="saffman")
+    plt.legend()
     plt.show()
 
 

@@ -93,7 +93,7 @@ def get_spring_damping_params_book(e,
   rhoA  : density of particle A
   EA    : Young's Modulus of particle A
   alphaA: Area Parameter of particle A
-  
+
   RB    : radius of particle B
   rhoB  : density of particle B
   EB    : Young's Modulus of particle B
@@ -142,6 +142,7 @@ def get_contact_force(
       Ft_new        : updated tangential force to store for next step
     """
     # Solid sphere moment of inertia
+    print(FtOld)
     I1 = 0.4 * m1 * r1**2
     I2 = 0.4 * m2 * r2**2
 
@@ -212,7 +213,8 @@ def get_contact_force(
     # Angular accelerations
     alpha1 = tau1 / I1
     alpha2 = tau2 / I2
-
+    # Update FtOld
+    FtOld[:] = Ft_new
     return a1, a2, alpha1, alpha2, Ft_new
 
 
@@ -295,6 +297,7 @@ def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction,save_history = False):
   t = 0.0
   if(save_history):
     t_store = np.zeros(Nt)
+    print(len(t_store))
     x_store = np.zeros((*x.shape, Nt))
     v_store = np.zeros((*v.shape, Nt))
     w_store = np.zeros((*w.shape, Nt))
