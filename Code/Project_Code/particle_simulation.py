@@ -70,6 +70,20 @@ def surface_velocity_3d(v, omega, r, n, sign):
     v_rot = np.cross(omega, r_c)  # rotational velocity at contact
     return v + v_rot, r_c
 
+# spring and damping params
+def get_spring_damping_params(e, ma, mb, t_col):
+    """
+    e     : coefficient of restitution
+    ma    : mass of particle a
+    mb    : mass of particle b
+    t_col : collision time scale
+    """
+    m = (ma * mb) / (ma + mb)  # reduced mass
+    kn = (m * (math.pi**2 + (math.log(e))**2)) / (t_col**2)  # normal stiffness
+    eta_n = -math.log(e) / math.sqrt(math.pi**2 + (math.log(e))**2) * 2.0 * math.sqrt(m * kn)  # normal damping
+    return kn, eta_n
+
+
 # Contact Forces
 def get_contact_force(
     x1, v1, omega1, m1, r1,
