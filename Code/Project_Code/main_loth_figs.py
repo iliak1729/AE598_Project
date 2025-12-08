@@ -4,7 +4,6 @@
 # Imports
 import numpy as np
 import matplotlib.pyplot as plt
-# Particle Sim Function Import
 from particle_simulation import *
 from tqdm import tqdm
 import os
@@ -94,7 +93,12 @@ def main():
     tau_L                        = L_integral/u_rms # Large-eddy turnover time [s]
 
     g = 9.81 # gravitational acceleration
-
+    Fr = 0.052
+    
+    g = u_rms / (tau_eta)
+    Fr = (nu / tau_eta)**(3/4) / (g * nu**(1/4))
+    print("Froude number = %.2e [-]" % Fr)
+    print("Gravitational acceleration = %.2e [m/s^2]" % g)
 
     # ================================================ Print Features ==========================================================
     print("Number of computational cells = %i^3    [-]" % nx)
@@ -107,7 +111,6 @@ def main():
     print("    Kolmogorov velocity scale = %.2e [m/s]" % u_eta)
     print("        Integral length scale = %.2e [m]" % L_integral)
     print("           Eddy turnover time = %.2e [s]" % tau_L)
-
 
 
     # ================================================ Plot Data Example ==========================================================
@@ -261,93 +264,7 @@ def main():
         )
         return Tp
 
-    # # ============================ Reproduce Inertial Particles from Homework ===========================================================
-    # Nparticle = 500
-    # T = 2*tau_L
-    # scaling_dt = 1/20
-    # dt = scaling_dt*tau_eta
-    # Nt = int(np.ceil(T/dt))
-
-    # # particle simulation parameters
-    # St = 1
-    # Re_p = 0.1
-    # rho_f = 1
-    # # Physical Properties
-    # R = nu * Re_p / u_rms
-    # tau_p = St * tau_eta
-    # lambda_rho = 2 * R**2 / (9 * nu * tau_p)
-    # rho_p = rho_f / lambda_rho
-    # tau_r = R**2 / (15 * nu * lambda_rho)   
-    # mu = nu * rho_f
-    # print("                       Radius = %.2e [m]" % R)
-    # print("                        tau_r = %.2e [s]" % tau_r)
-    # print("                           mu = %.2e [Pa*s]" % mu)
-    # print("                   lambda_rho = %.2e [N/A]" % lambda_rho)
-    # # Initial random fluid tracer locations in [0,L]^3
-    # v0 = np.zeros((Nparticle,3))
-    # w0 = np.zeros((Nparticle,3))
-    # x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
-
-    # (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS(t,x,v,w,St,Re_p,rho_f))    
-    # fig = plt.figure(layout='constrained', figsize=(10, 5)); subfigs = fig.subplots(1, 2)
-    # # Initialize slice paramters
-    # slice_loc = 0.25*L
-    # slice_thickness = 5.0*eta
-    # # Print initial particle distributionbbb
-    # if UseLaTeX:
-    #     time_init_string = r'$t = 0$'
-    #     time_final_string = r'$t = 2 \tau_L$'
-    # else:
-    #     time_init_string = 't = 0'
-    #     time_final_string = 't = 2 τ_L'
-    # plot_particles(subfigs[0], x0, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_init_string)
-    # # Print final particle distribution
-    # plot_particles(subfigs[1], x, slice_loc, slice_thickness,L, r'Particle distribution at %s' % time_final_string)
-    # plt.close('all')
-
-    # # ========================== Force History Graph - No Collisions =======================================
-    # Nparticle = 5000
-    # T = 2*tau_L
-    # scaling_dt = 1/15
-    # dt = scaling_dt*tau_eta
-    # Nt = int(np.ceil(T/dt))
-    # plt.show()
-    # # particle simulation parameters
-    # St = 10
-    # Re_p = 0.1
-    # rho_f = 100
-    # # Physical Properties
-    # R = nu * Re_p / u_rms
-    # tau_p = St * tau_eta
-    # lambda_rho = 2 * R**2 / (9 * nu * tau_p)
-    # rho_p = rho_f / lambda_rho
-    # tau_r = R**2 / (15 * nu * lambda_rho)   
-    # mu = nu * rho_f
-    # print("                       Radius = %.2e [m]" % R)
-    # print("                        tau_r = %.2e [s]" % tau_r)
-    # print("                           mu = %.2e [Pa*s]" % mu)
-    # print("                   lambda_rho = %.2e [N/A]" % lambda_rho)
-    # # Initial random fluid tracer locations in [0,L]^3
-    # v0 = np.zeros((Nparticle,3))
-    # w0 = np.zeros((Nparticle,3))
-    # x0 = np.reshape(L*np.random.rand(3*Nparticle),(Nparticle,3))
-    # history_store = np.zeros((Nt,5))
-    # count = [0]
-    # innerCount = [0]
-    # (x, v, w,t) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_with_history(t,x,v,w,St,Re_p,rho_f,history_store,count,innerCount),True)    
-    # print(x.shape)
-    # x = x[:,:,-1]
-    # v = v[:,:,-1]
-    # w = w[:,:,-1]
-
-    # plt.figure()
-    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,0],label ="drag")
-    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,1],label ="Faxen")
-    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,2],label ="magnus")
-    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,3],label ="saffman")
-    # plt.semilogy(t[0:Nt-1]/tau_L,history_store[0:Nt-1,4],label ="undisturbed")
-    # plt.legend()
-    # plt.show()
+    # # ============================ Reproducing Loth figures ===========================================================
 
     def particle_RHS_Loth(t,x,v,w,St):
         # parameter setup
@@ -358,7 +275,8 @@ def main():
         
         # form RHS
         dxdt = v
-        dvdt = get_stokes_drag_with_correlation(v, u_interp, tau_p, Re_p) 
+        dvdt = get_stokes_drag_with_correlation(v, u_interp, tau_p, Re_p)
+        dvdt[:,1] -= g  # adding gravity in y-direction
         dwdt = np.zeros_like(w)
 
         return(dxdt,dvdt,dwdt)
@@ -380,12 +298,14 @@ def main():
         dwdt = np.zeros_like(w)+dwdt_C.T
 
         return(dxdt,dvdt,dwdt)
-    # ========================== Force History Graph - Drag vs Stokes =======================================
-    St_list = np.logspace(-1,1,10)
-    diff_array = np.zeros_like(St_list)
-    diff_array_collision = np.zeros_like(St_list)
 
-    
+    St_list = np.logspace(-1,1,10)
+    # St_list = np.logspace(-1,0,10)
+    fig4 = np.zeros_like(St_list)
+    fig4_col_e_1 = np.zeros_like(St_list)
+   
+    energy_ratio_array = np.zeros_like(St_list)
+    mean_settling_velocity_array = np.zeros_like(St_list)
     
     for i in range(len(St_list)):
         St = St_list[i]
@@ -411,7 +331,9 @@ def main():
         dt = min(scaling_dt*tau_eta,t_D/10)
         Nt = int(np.ceil(T/dt))
 
-        k,eta = get_spring_damping_params(1,m_p,m_p,10*dt)
+        # Collision parameters
+        e = 1 # coefficient of resitution
+        k,eta = get_spring_damping_params(e,m_p,m_p,10*dt)
         mu = 0.8
         V_p_tot = Nparticle*V_p
 
@@ -434,108 +356,67 @@ def main():
         print("                           Np = %.2e [N/A]" % len(x0))
         print("                           St = %.2e [N/A]" % St)
 
-        # Collisions
-        (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_Loth_collision(t,x,v,w,St))  
-                
-        Sp = fluid_tensor_interpolator(x, L, dx, Sg, ng)  # shape (Npart, 3,3)
-        Rp = fluid_tensor_interpolator(x, L, dx, Rg, ng)  # shape (Npart, 3,3)
-
-        S2_p = np.einsum('...ij,...ij->...', Sp, Sp)  # length Npart
-        R2_p = np.einsum('...ij,...ij->...', Rp, Rp)  # length Npart
-
-        S2_mean = np.mean(S2_p)
-        R2_mean = np.mean(R2_p)  
-
-        diff = tau_eta**2 * (S2_mean - R2_mean)
-        diff_array_collision[i] = diff
-        print(f"St = {St}, Drag Difference (with collisions) = {diff_array_collision[i]}")
         # No Collisions
         (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_Loth(t,x,v,w,St))  
+
+        # particle kinetic energy
+        v_mag2 = np.sum(v**2,axis=1)
+        KE_p = 0.5 * np.mean(v_mag2)
+        energy_ratio_array[i] = KE_p / tke
                 
+        # strain and rotation rate tensors at particle locations
         Sp = fluid_tensor_interpolator(x, L, dx, Sg, ng)  # shape (Npart, 3,3)
         Rp = fluid_tensor_interpolator(x, L, dx, Rg, ng)  # shape (Npart, 3,3)
 
+        # compute S:S and R:R
         S2_p = np.einsum('...ij,...ij->...', Sp, Sp)  # length Npart
         R2_p = np.einsum('...ij,...ij->...', Rp, Rp)  # length Npart
 
+        # mean strain rate and rotation rate
         S2_mean = np.mean(S2_p)
         R2_mean = np.mean(R2_p)  
 
+        # fig4 data
         diff = tau_eta**2 * (S2_mean - R2_mean)
-        diff_array[i] = diff
+        fig4[i] = diff
 
-        print(f"St = {St}, Drag Difference = {diff_array[i]}")
+        # mean settling velocity
+        mean_settling_velocity_array[i] = np.mean(v[:,1]) / u_eta + tau_p * g / u_eta
+
+    # saving data in csv for figure 4
+    np.savetxt(work_file_path+"/Code/Results/figure4_data.csv", np.column_stack((St_list, fig4)), delimiter=",", header="St,tau_eta^2(S^2-R^2)")
+
+    # figure 4 plot
     plt.figure()
-    # plt.scatter(St_list, diff_array, s=50, color='black')
-    plt.loglog(St_list, diff_array, "o", color='black')
-    plt.loglog(St_list, diff_array_collision, "o", color='red')
-
-    # plt.xscale('log')
+    plt.loglog(St_list, fig4, "o", color='black')
     plt.xlabel(r"St")
     plt.ylabel(r"$\tau_\eta^2(\langle S^2\rangle^p - \langle R^2\rangle^p)$")
-
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(work_file_path+"/Code/Results/drag_difference_vs_stokes.pdf", dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.savefig(work_file_path+"/Code/Results/fig4.pdf", dpi=600, bbox_inches='tight', pad_inches=1e-1)
     plt.show()
-    # ========================== Inertial particles in HIT without collisions =======================================
-    # Stokes numbers
-    # St_list = np.logspace(-1, 1, 10)
-    # St_list = [1]
-    # Npart = 200000
-    # T = 2.0 * tau_L
 
-    # S2_mean_array = np.zeros_like(St_list)
-    # R2_mean_array = np.zeros_like(St_list)
+    # plotting kinetic energy vs St
+    plt.figure()
+    plt.semilogx(St_list, energy_ratio_array, "o", color='black', markersize=8)
+    plt.xlabel(r"St")
+    plt.ylabel(r"$\langle E_p\rangle^p / \langle E_f\rangle$")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
-    # for i, St in enumerate(St_list):
-    #     print(f"Running simulation for St = {St}")
-        
-    #     # particle response time
-    #     tau_p = St * tau_eta
-    #     dt = (1.0 / 5.0) * min(tau_p, tau_eta)
-    #     Nt = int(np.ceil(T / dt))
-
-    #     # Initial positions: random in [0, L]^3
-    #     part_x0 = np.reshape(L * np.random.rand(3 * Npart), (Npart, 3))
-
-    #     # Initial velocities: start with fluid velocity at particle positions
-    #     part_v0 = fluid_velocity_interpolator(part_x0, L, dx, ug, vg, wg, ng)
-
-    #     # advance inertial particles
-    #     part_x, part_v, part_w = rk4_integrator(part_x0, part_v0, np.zeros((Npart, 3)), dt, Nt, L, lambda t, x, v, w: particle_RHS_Loth(t, x, v, w, St))
-        
-    #     Sp = fluid_tensor_interpolator(part_x, L, dx, Sg, ng)  # shape (Npart, 3,3)
-    #     Rp = fluid_tensor_interpolator(part_x, L, dx, Rg, ng)  # shape (Npart, 3,3)
-
-    #     S2_p = np.einsum('...ij,...ij->...', Sp, Sp)  # length Npart
-    #     R2_p = np.einsum('...ij,...ij->...', Rp, Rp)  # length Npart
-
-    #     S2_mean = np.mean(S2_p)
-    #     R2_mean = np.mean(R2_p)
-    #     diff_array = tau_eta**2 * (S2_mean - R2_mean)
-    #     print(f"St = {St}, Drag Difference = {diff_array}")
-
-        # S2_mean_array[i] = S2_mean
-        # R2_mean_array[i] = R2_mean
-    
-    # # Plot results
-    # diff_array = tau_eta**2 * (S2_mean_array - R2_mean_array)
-    # plt.figure()
-    # # plt.scatter(St_list, diff_array, s=50, color='black')
-    # plt.loglog(St_list, diff_array, "o", color='black')
-
-    # # plt.xscale('log')
-    # plt.xlabel(r"St")
-    # plt.ylabel(r"$\tau_\eta^2(\langle S^2\rangle^p - \langle R^2\rangle^p)$")
-
-    # plt.grid(True, alpha=0.3)
-    # plt.tight_layout()
-    # plt.show()
-
+    # plotting mean settling velocity vs St
+    plt.figure()
+    plt.semilogx(St_list, mean_settling_velocity_array, "o", color='black', markersize=8)
+    plt.xlabel(r"St")
+    plt.ylabel(r"$\langle V_s\rangle^p / u_\eta$")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 
 
 # Run only here
 if __name__ == '__main__':
+
     main()

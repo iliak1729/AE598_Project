@@ -15,7 +15,13 @@ def get_gravity_force(g):
 # Stokes Drag Term 
 def get_stokes_drag(v, u_interp, tau_p):
   return (u_interp-v)/tau_p
-
+def get_stokes_drag_with_correlation(v,u_interp,tau_p,Re_p):
+    # Schiller-Naumann Correlation
+    if(Re_p < 1000):
+        Cc = 1 + 0.15*Re_p**0.687
+    else:
+        Cc = 0.0183*Re_p
+    return Cc*(u_interp - v)/tau_p
 # Faxen Drag Term
 def get_faxen_correction(mu,rho_particle,lap_u):
    return 3*mu*lap_u/(4*rho_particle)
@@ -145,7 +151,7 @@ def get_contact_force(
       Ft_new        : updated tangential force to store for next step
     """
     # Solid sphere moment of inertia
-    print(FtOld)
+    # print(FtOld)
     I1 = 0.4 * m1 * r1**2
     I2 = 0.4 * m2 * r2**2
 
@@ -163,6 +169,7 @@ def get_contact_force(
         Ft_new = np.zeros(3)
         return a1, a2, alpha1, alpha2, Ft_new
 
+    # print("COLLISION")
     # Unit normal
     n = dx / dist
 
@@ -300,7 +307,7 @@ def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction,save_history = False):
   t = 0.0
   if(save_history):
     t_store = np.zeros(Nt)
-    print(len(t_store))
+    # print(len(t_store))
     x_store = np.zeros((*x.shape, Nt))
     v_store = np.zeros((*v.shape, Nt))
     w_store = np.zeros((*w.shape, Nt))
@@ -362,7 +369,7 @@ def initialize_particles(
     dp: float,
     phi_v: float,
     rng: Optional[np.random.Generator] = None,
-    max_packing_fraction: float = 0.64,
+    max_packing_fraction: float = 0.2,
     max_attempts_per_particle: int = 10_000,
 ):
     """
@@ -470,3 +477,117 @@ def initialize_particles(
     # back to global coordinates
     positions_global = positions_local + domain_origin[None, :]
     return positions_global, radii
+
+def collision_derivative(L, r, m, k, eta, mu, kt, dt):
+    """    
+    :param L: Domain length
+    :param r: particle radius
+    :param m: particle mass
+    :param k: spring stiffness
+    :param eta: damping coefficient
+    :param mu: friction coefficient
+    :param kt: tangential stiffness
+    :param dt: time step (for FtTrial update)
+    """
+
+    Ft_dict = {}  # To store tangential forces between particle pairs
+
+    # particle based mesh
+    cell_size = 2.0 * r
+    n_cells = int(L / cell_size)
+    # print("GETTING DERIVATIVE")
+    def derivative(t, x, v, w):
+        nonlocal Ft_dict
+        # print("DERIVATIVE CALLED")
+        N = x.shape[1]          # number of particles
+        dxdt = v.copy()         # dx/dt = v
+        dvdt = np.zeros_like(v) # accleration
+        dwdt = np.zeros_like(w) # angular acceleration
+
+        # cell linked list
+        cell_list = defaultdict(list)
+        for i in range(N):
+            xi = x[:, i] # RK4 integrator already wraps position
+            idx = np.floor(xi / cell_size).astype(int)
+            idx = np.clip(idx, 0, n_cells - 1)
+            cell_idx = (idx[0], idx[1], idx[2])
+            cell_list[cell_idx].append(i) # add particle i to cell i,j,k
+
+        # cell id
+        def cell_id(c):
+            return c[0] + n_cells * (c[1] + n_cells * c[2])
+        
+        # looping over cells and neighbors
+        for cell, p_indices in cell_list.items():
+            cx, cy, cz = cell
+            cid = cell_id(cell)
+
+            # looping over stencil
+            for ii in (-1, 0, 1):
+                for jj in (-1, 0, 1):
+                    for kk in (-1, 0, 1):
+                        # neighor cell indices
+                        nb = ( (cx + ii) % n_cells,
+                               (cy + jj) % n_cells,
+                               (cz + kk) % n_cells )
+                        nb_id = cell_id(nb)
+
+                        # to avoid double counting only do >= id
+                        if nb_id < cid:
+                            continue
+
+                        # particle indices in a neighbor cell
+                        nb_p_indices = cell_list.get(nb, [])
+                        if not nb_p_indices:
+                            continue
+
+                        # looping over particle pairs
+                        for i in p_indices:         # target cell particles
+                            for j in nb_p_indices:  # neighbor cell particles
+                                if nb_id == cid and j <= i:
+                                    # for same cell only do j>i
+                                    continue
+
+                                # particle pair
+                                xi = x[:, i]
+                                xj = x[:, j]
+
+                                # periodic min dist
+                                dx_vec = min_dx_periodic(xi, xj, L)
+                                dist = np.linalg.norm(dx_vec)
+                                if dist >= 2.0 * r or dist == 0.0:
+                                    # no contact
+                                    pair_key = (i, j) if i < j else (j, i)
+                                    if pair_key in Ft_dict:
+                                        Ft_dict[pair_key] = np.zeros(3)
+                                    continue
+
+                                # Ftold
+                                pair_key = (i, j) if i < j else (j, i)
+                                Ft_old = Ft_dict.get(pair_key, np.zeros(3))
+
+                                # linear and angular velocity
+                                vi = v[:, i]
+                                vj = v[:, j]
+                                wi = w[:, i]
+                                wj = w[:, j]
+
+                                # contact force accleration
+                                # print("GETTING CONTACT FORCE")
+                                x1_rel = np.zeros(3)
+                                x2_rel = dx_vec
+                                ai, aj, alpha_i, alpha_j, Ft_new = get_contact_force(
+                                    x1_rel, vi, wi, m, r,
+                                    x2_rel, vj, wj, m, r,
+                                    k, eta, mu, kt, Ft_old, dt)
+                                
+                                # update accelerations
+                                dvdt[:, i] += ai
+                                dvdt[:, j] += aj
+                                dwdt[:, i] += alpha_i
+                                dwdt[:, j] += alpha_j
+
+                                # update Ft_dict
+                                Ft_dict[pair_key] = Ft_new
+        return dxdt, dvdt, dwdt
+    return derivative
