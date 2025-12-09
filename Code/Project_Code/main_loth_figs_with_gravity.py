@@ -296,6 +296,7 @@ def main():
         # form RHS
         dxdt = v+dxdt_C.T
         dvdt = get_stokes_drag_with_correlation(v, u_interp, tau_p,Re_p) + dvdt_C.T
+        dvdt[:,1] -= g  # adding gravity in y-direction
         dwdt = np.zeros_like(w)+dwdt_C.T
 
         return(dxdt,dvdt,dwdt)
