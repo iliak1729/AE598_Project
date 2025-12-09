@@ -92,13 +92,13 @@ def main():
     L_integral                   = u_rms**3/eps # Integral length scale [m]
     tau_L                        = L_integral/u_rms # Large-eddy turnover time [s]
 
-    g = 9.81 # gravitational acceleration
-    Fr = 0.052
+    # g = 9.81 # gravitational acceleration
+    # Fr = 0.052
     
-    g = u_rms / (tau_eta)
-    Fr = (nu / tau_eta)**(3/4) / (g * nu**(1/4))
-    print("Froude number = %.2e [-]" % Fr)
-    print("Gravitational acceleration = %.2e [m/s^2]" % g)
+    # g = u_rms / (tau_eta)
+    # Fr = (nu / tau_eta)**(3/4) / (g * nu**(1/4))
+    # print("Froude number = %.2e [-]" % Fr)
+    # print("Gravitational acceleration = %.2e [m/s^2]" % g)
 
     # ================================================ Print Features ==========================================================
     print("Number of computational cells = %i^3    [-]" % nx)
@@ -276,7 +276,6 @@ def main():
         # form RHS
         dxdt = v
         dvdt = get_stokes_drag_with_correlation(v, u_interp, tau_p, Re_p)
-        dvdt[:,1] -= g  # adding gravity in y-direction
         dwdt = np.zeros_like(w)
 
         return(dxdt,dvdt,dwdt)
@@ -302,50 +301,60 @@ def main():
     St_list = np.logspace(-1,1,10)
     # St_list = np.logspace(-1,0,10)
     fig4 = np.zeros_like(St_list)
-    fig4_col_e_1 = np.zeros_like(St_list)
    
-    energy_ratio_array = np.zeros_like(St_list)
-    mean_settling_velocity_array = np.zeros_like(St_list)
+    fig6 = np.zeros_like(St_list)
+
+    fig8 = np.zeros_like(St_list)
+    acc_var_array = np.zeros_like(St_list, dtype=float)
     
     for i in range(len(St_list)):
         St = St_list[i]
-        Nparticle = 10000
-        T = 2*tau_L
-        scaling_dt = 1/15
-        dt = scaling_dt*tau_eta
-        # particle simulation parameters
-        Re_p = 13
-        rho_f = 1
 
-        # Physical Properties
-        R = nu * Re_p / u_rms
+        # --------------------------- basic parameters ---------------------------
+        Nparticle = 10000
+        T = 2 * tau_L
+        scaling_dt = 1 / 15
+        dt = scaling_dt * tau_eta
+
+        Re_p = 13
+        rho_f = 1.0
+
+        # Physical particle properties
+        R = nu * Re_p / u_rms                 # particle radius
         tau_p = St * tau_eta
         lambda_rho = 2 * R**2 / (9 * nu * tau_p)
         rho_p = rho_f / lambda_rho
-        tau_r = R**2 / (15 * nu * lambda_rho)   
+        tau_r = R**2 / (15 * nu * lambda_rho)
         mu = nu * rho_f
-        V_p = (4/3)*np.pi*R**3
+        V_p = (4.0 / 3.0) * np.pi * R**3
         m_p = rho_p * V_p
 
-        t_D = 2*R/u_rms
-        dt = min(scaling_dt*tau_eta,t_D/10)
-        Nt = int(np.ceil(T/dt))
+        t_D = 2 * R / u_rms                   # particle crossing time
+        dt = min(scaling_dt * tau_eta, t_D / 10.0)
+        Nt = int(np.ceil(T / dt))
 
-        # Collision parameters
-        e = 1 # coefficient of resitution
-        k,eta = get_spring_damping_params(e,m_p,m_p,10*dt)
-        mu = 0.8
-        V_p_tot = Nparticle*V_p
+        # --------------------------- collision model (not used in RHS here) ----
+        e = 1.0                               # coefficient of restitution
+        k, eta = get_spring_damping_params(e, m_p, m_p, 10 * dt)
+        mu_fric = 0.8                         # friction coefficient
+        V_p_tot = Nparticle * V_p
+        phi_p = V_p_tot / (L**3)
 
-        phi_p = V_p_tot/(L**3)
-        
-        deriv = collision_derivative(L, R, m_p, k, eta, mu, k, dt)
+        deriv = collision_derivative(L, R, m_p, k, eta, mu_fric, k, dt)
 
-        
-        # Initial random fluid tracer locations in [0,L]^3
-        x0 = initialize_particles((0,0,0),L,2*R,phi_p,np.random.default_rng(seed=42))[0]
+        # --------------------------- initial particle state ---------------------
+        # positions in [0,L]^3; initialize_particles decides actual Np from phi_p
+        x0 = initialize_particles(
+            (0, 0, 0),
+            L,
+            2 * R,
+            phi_p,
+            np.random.default_rng(seed=42)
+        )[0]
+
         v0 = np.zeros_like(x0)
         w0 = np.zeros_like(x0)
+
         print("SIMULATION INFORMATION =======================")
         print("                       Radius = %.2e [m]" % R)
         print("                        tau_r = %.2e [s]" % tau_r)
@@ -353,38 +362,61 @@ def main():
         print("                           mu = %.2e [Pa*s]" % mu)
         print("                   lambda_rho = %.2e [N/A]" % lambda_rho)
         print("                        phi_p = %.2e [N/A]" % phi_p)
-        print("                           Np = %.2e [N/A]" % len(x0))
+        print("                           Np = %d [N/A]"  % len(x0))
         print("                           St = %.2e [N/A]" % St)
 
-        # No Collisions
-        (x, v, w) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_Loth(t,x,v,w,St))  
+        # --------------------------- particle integration (no collisions) -------
+        x_p, v_p, w_p = rk4_integrator(
+            x0, v0, w0,
+            dt, Nt, L,
+            lambda t, x, v, w: particle_RHS_Loth(t, x, v, w, St)
+        )
 
-        # particle kinetic energy
-        v_mag2 = np.sum(v**2,axis=1)
-        KE_p = 0.5 * np.mean(v_mag2)
-        energy_ratio_array[i] = KE_p / tke
-                
-        # strain and rotation rate tensors at particle locations
-        Sp = fluid_tensor_interpolator(x, L, dx, Sg, ng)  # shape (Npart, 3,3)
-        Rp = fluid_tensor_interpolator(x, L, dx, Rg, ng)  # shape (Npart, 3,3)
+        # --------------------------- particle KE and fig.4 data -----------------
+        v_mag2 = np.sum(v_p**2, axis=1)
+        KE_p = 0.5 * np.mean(v_mag2)    
+        fig6[i] = KE_p / tke 
 
-        # compute S:S and R:R
-        S2_p = np.einsum('...ij,...ij->...', Sp, Sp)  # length Npart
-        R2_p = np.einsum('...ij,...ij->...', Rp, Rp)  # length Npart
+        # strain and rotation tensors at particle positions
+        Sp = fluid_tensor_interpolator(x_p, L, dx, Sg, ng)  # (Np,3,3)
+        Rp = fluid_tensor_interpolator(x_p, L, dx, Rg, ng)  # (Np,3,3)
 
-        # mean strain rate and rotation rate
+        # S:S and R:R at particle positions
+        S2_p = np.einsum('...ij,...ij->...', Sp, Sp)
+        R2_p = np.einsum('...ij,...ij->...', Rp, Rp)
+
         S2_mean = np.mean(S2_p)
-        R2_mean = np.mean(R2_p)  
+        R2_mean = np.mean(R2_p)
 
-        # fig4 data
         diff = tau_eta**2 * (S2_mean - R2_mean)
         fig4[i] = diff
 
-        # mean settling velocity
-        mean_settling_velocity_array[i] = np.mean(v[:,1]) / u_eta + tau_p * g / u_eta
+        # ---- particle accleration data
+        # a_eta = u_eta / tau_eta
+        u_interp = fluid_velocity_interpolator(x_p, L, dx, ug, vg, wg, ng)
+        a_p = get_stokes_drag(v_p, u_interp, tau_p)
+        a2 = np.mean(a_p**2, axis=1)
+        acc_var_array[i] = np.var(np.linalg.norm(a_p, axis=1))
+
+
+    a_eta = u_eta / tau_eta
+    a_eta2 = a_eta**2
+
+    fig8 = acc_var_array / a_eta2
+
+    plt.figure()
+    plt.semilogx(St_list, fig8, 'o-', color='black')
+    plt.xlabel(r"$St$")
+    plt.ylabel(r"$\langle a^2(St)\rangle^p / a_\eta^2$")
+    plt.grid(True, which='both', alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
 
     # saving data in csv for figure 4
     np.savetxt(work_file_path+"/Code/Results/figure4_data.csv", np.column_stack((St_list, fig4)), delimiter=",", header="St,tau_eta^2(S^2-R^2)")
+    np.savetxt(work_file_path+"/Code/Results/figure6_data.csv", np.column_stack((St_list, fig6)), delimiter=",", header="St,<Ep>/<Ef>")
+    np.savetxt(work_file_path+"/Code/Results/figure8_data.csv", np.column_stack((St_list, fig8)), delimiter=",", header="St,acceleration_variance/a_eta^2")
 
     # figure 4 plot
     plt.figure()
@@ -398,18 +430,9 @@ def main():
 
     # plotting kinetic energy vs St
     plt.figure()
-    plt.semilogx(St_list, energy_ratio_array, "o", color='black', markersize=8)
+    plt.semilogx(St_list, fig6, "o", color='black', markersize=8)
     plt.xlabel(r"St")
     plt.ylabel(r"$\langle E_p\rangle^p / \langle E_f\rangle$")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # plotting mean settling velocity vs St
-    plt.figure()
-    plt.semilogx(St_list, mean_settling_velocity_array, "o", color='black', markersize=8)
-    plt.xlabel(r"St")
-    plt.ylabel(r"$\langle V_s\rangle^p / u_\eta$")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
