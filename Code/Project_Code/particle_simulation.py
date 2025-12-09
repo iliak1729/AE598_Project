@@ -8,20 +8,58 @@ import math
 from collections import defaultdict
 from typing import Tuple, Optional
 
+# Export x and y to CSV
+def export_to_csv(x, y, xname, yname, file_name):
+    """
+    Export two 1D numpy arrays x and y into a CSV file with column names.
+
+    Parameters
+    ----------
+    x : array-like
+        Data for the first column.
+    y : array-like
+        Data for the second column.
+    xname : str
+        Header name for the x column.
+    yname : str
+        Header name for the y column.
+    file_name : str
+        Path to output CSV file.
+    """
+
+    # Convert to numpy arrays to ensure proper shape and error checking
+    x = np.asarray(x)
+    y = np.asarray(y)
+
+    # Basic validation
+    if x.shape != y.shape:
+        raise ValueError(f"x and y must have the same shape, but got {x.shape} and {y.shape}")
+
+    # Stack columns into a 2D array
+    data = np.column_stack((x, y))
+
+    # Save to CSV with header
+    header = f"{xname},{yname}"
+    np.savetxt(file_name, data, delimiter=",", header=header, comments="")
+
+    print(f"Saved CSV to: {file_name}")
+
 # Gravity Force - TO DO 
 def get_gravity_force(g):
     return g
-
 # Stokes Drag Term 
 def get_stokes_drag(v, u_interp, tau_p):
   return (u_interp-v)/tau_p
 def get_stokes_drag_with_correlation(v,u_interp,tau_p,Re_p):
-    # Schiller-Naumann Correlation
+    Cc = Schiller_Naumann(Re_p)
+    return Cc*(u_interp - v)/tau_p
+def Schiller_Naumann(Re_p):
+# Schiller-Naumann Correlation
     if(Re_p < 1000):
         Cc = 1 + 0.15*Re_p**0.687
     else:
         Cc = 0.0183*Re_p
-    return Cc*(u_interp - v)/tau_p
+    return Cc
 # Faxen Drag Term
 def get_faxen_correction(mu,rho_particle,lap_u):
    return 3*mu*lap_u/(4*rho_particle)
@@ -32,7 +70,6 @@ def get_torque(wf_interp, wp, tau_r):
 # Undistrubed Force
 def get_undisturbed_force(lambda_rho,mat_der_u,g):
    return lambda_rho*(mat_der_u - g)
-
 # Get Saffman Lift
 def get_saffman_lift(R,rho_p,rho,mu,up,u_interp,wf_interp):
     K = 6.46
@@ -310,6 +347,7 @@ def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction,save_history = False):
     # print(len(t_store))
     x_store = np.zeros((*x.shape, Nt))
     v_store = np.zeros((*v.shape, Nt))
+    a_store = np.zeros((*v.shape, Nt))
     w_store = np.zeros((*w.shape, Nt))
     
     x_store[:,:,0] = x0.copy()
@@ -345,9 +383,10 @@ def rk4_integrator(x0,v0,w0,dt,Nt,L,derivativeFunction,save_history = False):
       x_store[:,:,i] = x
       v_store[:,:,i] = v
       w_store[:,:,i] = w
+      a_store[:,:,i] = (k1v+2*k1v+2*k1v+k1v)/6
   # Return
   if(save_history):
-    return (x_store,v_store,w_store,t_store)
+    return (x_store,v_store,w_store,t_store,a_store)
   else:
     return (x,v,w)
 

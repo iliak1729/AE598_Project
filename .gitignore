@@ -1,6 +1,6 @@
 # Ignore Results File
 Code/Results/*
-
+csv_data/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
