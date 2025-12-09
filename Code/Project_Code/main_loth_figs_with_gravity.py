@@ -369,7 +369,7 @@ def main():
         print("                           St = %.2e [N/A]" % St)
 
         # No Collisions
-        (x_all, v_all, w_all,t_all,a_all) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_Loth_collision(t,x,v,w,St),True)  
+        (x_all, v_all, w_all,t_all,a_all) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_Loth(t,x,v,w,St),True)  
 
         x = x_all[:,:,-1]
         v = v_all[:,:,-1]
