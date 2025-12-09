@@ -291,7 +291,6 @@ def main():
         u_interp = fluid_velocity_interpolator(x,L,dx,ug,vg,wg,ng)
         
         # Get collision acceleration
-        
         dxdt_C,dvdt_C,dwdt_C = deriv(t,x.T,v.T,w.T)
 
         # form RHS
@@ -321,9 +320,9 @@ def main():
 
     for i in range(len(St_list)):
         St = St_list[i]
-        Nparticle = 5000 # Check this ==============================
+        Nparticle = 10000 # Check this ==============================
         
-        scaling_dt = 1/50 # Check this ==============================
+        scaling_dt = 1/10 # Check this ==============================
         dt = scaling_dt*tau_eta
         # particle simulation parameters
         Re_p = 13 # Check this ==============================
@@ -369,7 +368,7 @@ def main():
         print("                           St = %.2e [N/A]" % St)
 
         # No Collisions
-        (x_all, v_all, w_all,t_all,a_all) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_Loth(t,x,v,w,St),True)  
+        (x_all, v_all, w_all,t_all,a_all) = rk4_integrator(x0,v0,w0,dt,Nt,L,lambda t,x,v,w : particle_RHS_Loth_collision(t,x,v,w,St),True)  
 
         x = x_all[:,:,-1]
         v = v_all[:,:,-1]
